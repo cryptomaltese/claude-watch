@@ -1,12 +1,124 @@
-const version = "0.2.0";
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { getConfigDir, ensureConfigDir } from "./core/config.js";
+import { readAndClearNotices } from "./core/notices.js";
 
-function main(): void {
-  const cmd = process.argv[2] ?? "help";
-  if (cmd === "version" || cmd === "--version" || cmd === "-v") {
-    console.log(`claude-watch v${version}`);
-  } else {
-    console.log(`claude-watch v${version} — run 'claude-watch help' for usage`);
+function checkDep(binary: string, name: string): void {
+  try {
+    execFileSync("which", [binary], { stdio: "ignore" });
+  } catch {
+    const hints: Record<string, string> = {
+      tmux: "  Debian/Ubuntu: sudo apt install tmux\n  macOS: brew install tmux",
+      rg: "  Debian/Ubuntu: sudo apt install ripgrep\n  macOS: brew install ripgrep",
+      crontab: "  Debian/Ubuntu: sudo apt install cron\n  macOS: cron is built-in",
+    };
+    process.stderr.write(
+      `claude-watch: ${name} is required but not found in PATH.\n${hints[binary] ?? ""}\n`
+    );
+    process.exit(127);
   }
 }
 
-main();
+function checkDeps(): void {
+  checkDep("tmux", "tmux");
+  checkDep("rg", "ripgrep");
+  checkDep("crontab", "cron");
+}
+
+function showNotices(): void {
+  const notices = readAndClearNotices();
+  for (const n of notices) {
+    process.stderr.write(`⚠ ${n.message}\n`);
+  }
+}
+
+async function main(): Promise<void> {
+  const cmd = process.argv[2] ?? "pick";
+  const args = process.argv.slice(3);
+
+  ensureConfigDir();
+
+  if (cmd === "_hook") {
+    const { runHook } = await import("./commands/_hook.js");
+    runHook(args[0]);
+    return;
+  }
+
+  if (!["help", "--help", "-h", "version", "--version", "-v"].includes(cmd)) {
+    checkDeps();
+  }
+
+  if (["pick", "status", "activate", "deactivate", "new", "logs"].includes(cmd)) {
+    showNotices();
+  }
+
+  switch (cmd) {
+    case "pick":
+    case undefined: {
+      const { runPick } = await import("./commands/pick.js");
+      await runPick();
+      break;
+    }
+    case "scan": {
+      const { runScan } = await import("./commands/scan.js");
+      await runScan();
+      break;
+    }
+    case "status": {
+      const { runStatus } = await import("./commands/status.js");
+      runStatus();
+      break;
+    }
+    case "activate": {
+      const { runActivate } = await import("./commands/activate.js");
+      await runActivate(args);
+      break;
+    }
+    case "deactivate": {
+      const { runDeactivate } = await import("./commands/deactivate.js");
+      await runDeactivate(args);
+      break;
+    }
+    case "new": {
+      const { runNew } = await import("./commands/new.js");
+      await runNew(args);
+      break;
+    }
+    case "logs": {
+      const { runLogs } = await import("./commands/logs.js");
+      runLogs(args);
+      break;
+    }
+    case "install": {
+      const { runInstall } = await import("./commands/install.js");
+      runInstall();
+      break;
+    }
+    case "uninstall": {
+      const { runUninstall } = await import("./commands/uninstall.js");
+      runUninstall();
+      break;
+    }
+    case "version":
+    case "--version":
+    case "-v":
+      console.log("claude-watch v0.2.0");
+      break;
+    case "help":
+    case "--help":
+    case "-h": {
+      const { runHelp } = await import("./commands/help.js");
+      runHelp();
+      break;
+    }
+    default:
+      process.stderr.write(`claude-watch: unknown command '${cmd}'\nRun 'claude-watch help' for usage.\n`);
+      process.exit(1);
+  }
+}
+
+main().catch((err) => {
+  process.stderr.write(`claude-watch: ${err.message}\n`);
+  process.exit(1);
+});
