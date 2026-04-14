@@ -6,7 +6,7 @@
 
 ## Goals
 
-1. Make managing persistent Claude Code sessions frictionless: pick any existing session (active, recent, or forgotten), turn on watchdog management, optionally attach.
+1. Make managing persistent Claude Code sessions frictionless: pick any existing session (active, recent, or forgotten), or create a new one from scratch, turn on watchdog management, optionally attach.
 2. Ship as a Claude Code plugin that installs with zero post-install fiddling.
 3. Match Claude Code's own look and feel so the tool feels native to its ecosystem.
 4. Consolidate bash + TypeScript logic into a single cohesive codebase.
@@ -36,9 +36,9 @@ The tool exposes exactly one bit of state per cwd: **watched** (on/off).
 - **On** = entry exists in `watched.json`. The scan cron will resume this session if it dies.
 - **Off** = no entry. No management.
 
-The primary interaction is a picker (`claude-watch` with no arguments) that shows every Claude Code session on the machine, newest first, and lets the user flip its watched state. The picker never creates sessions from scratch; it only manages sessions that already exist in `~/.claude/projects/`.
+The primary interaction is a picker (`claude-watch` with no arguments) that shows every Claude Code session on the machine, newest first, and lets the user flip its watched state or create a new watched session from scratch.
 
-### The four user flows the picker serves
+### The five user flows the picker serves
 
 In decreasing likelihood:
 
@@ -46,8 +46,9 @@ In decreasing likelihood:
 2. Pick a recent archived session → resume + turn it on.
 3. Pick an older archived session → resume + turn it on.
 4. Search by keyword/phrase in the transcript to find a forgotten session → resume + turn it on.
+5. Create a brand-new watched session for a new project → provide a directory, activate immediately.
 
-All four flows run through the same picker screen.
+Flows 1–4 run through the session list. Flow 5 is triggered via `ctrl-n` from the list screen.
 
 ## Architecture
 
@@ -96,6 +97,7 @@ claude-watch/
 │       ├── SessionList.tsx
 │       ├── PeekPanel.tsx
 │       ├── ActionMenu.tsx
+│       ├── NewSessionInput.tsx    # ctrl-n flow: path input + create
 │       └── hooks/
 │           ├── useSessions.ts
 │           └── useSearch.ts
@@ -123,12 +125,19 @@ claude-watch/
       "cwd": "/home/maltese/.openclaw/workspace/sessions/ktap",
       "pinnedJsonl": "4f2bf4db-4dc0-435d-8741-233601fea897",
       "pinnedAt": "2026-04-11T14:32:00Z"
+    },
+    {
+      "cwd": "/home/maltese/projects/new-thing",
+      "pinnedJsonl": null,
+      "pinnedAt": "2026-04-14T10:00:00Z"
     }
   ]
 }
 ```
 
 Tmux session name is derivable from `cwd` via the slug function — not stored.
+
+`pinnedJsonl: null` means "brand-new session, no prior conversation to resume." Scan treats null-pinned entries as "verify the tmux session is alive; roll forward to the first jsonl that appears in this cwd's slug dir."
 
 ### Reading Claude Code sessions
 
@@ -214,6 +223,7 @@ Old bash keys (`sessionsDir`, `prefix`, `sessions.<name>.flags`) are dropped. No
 | `claude-watch pick` | Alias for default | yes |
 | `claude-watch scan` | One watchdog cycle — cron entrypoint | no |
 | `claude-watch status` | Non-interactive table of watched entries | no |
+| `claude-watch new <cwd>` | Create a new watched session from scratch | no |
 | `claude-watch activate <cwd> [--jsonl <id>]` | Headless activate | no |
 | `claude-watch deactivate <cwd> [--no-kill]` | Headless deactivate; default kills tmux, `--no-kill` preserves it | no |
 | `claude-watch logs [n]` | Tail last n lines of log (default 50) | no |
@@ -239,6 +249,10 @@ Removed from the bash version: `start`, `stop`, `restart`, `list`, `add`.
 ### `validateAndResume(entry)` — malformed jsonl recovery
 
 ```
+if entry.pinnedJsonl is null:
+    // brand-new session — start fresh, no resume attempt
+    start fresh session (no --resume)
+    return
 candidates = [entry.pinnedJsonl, ...other jsonls in slug sorted by mtime desc]
 for each candidate:
     if validate(candidate):
@@ -262,13 +276,17 @@ warn: "no recoverable jsonl; started fresh in <cwd>"
 1. loadSessions() → all jsonls, mtime desc
 2. Ink renders first pageSize (10) rows
 3. user types → debounced ripgrep → filter
-4. ↑↓ navigate, ↵ select
-5. peek lazy-loads (tail N lines), ActionMenu renders
-6. user picks action:
-     off → on:  ↵ activate  /  ctrl-↵ activate + attach
-     on → off:  ↵ deactivate  /  ctrl-↵ deactivate + attach (keeps tmux)
-7. on +attach actions → write sentinel file, exit 0
-8. bash wrapper reads sentinel, execs `tmux attach -t <slug>`
+4. ↑↓ navigate, ↵ select, ctrl-n new session
+5a. [existing session] peek lazy-loads (tail N events), ActionMenu renders
+    user picks action:
+      off → on:  ↵ activate  /  ctrl-↵ activate + attach
+      on → off:  ↵ deactivate  /  ctrl-↵ deactivate + attach (keeps tmux)
+5b. [new session via ctrl-n] NewSessionInput renders
+    user enters directory path (tab-completes)
+      ↵ create + activate
+      ctrl-↵ create + activate + attach
+6. on +attach actions → write sentinel file, exit 0
+7. bash wrapper reads sentinel, execs `tmux attach -t <slug>`
 ```
 
 ### Sentinel file mechanics
@@ -311,13 +329,23 @@ deactivate(cwd, kill=true, attach=false):
       (ctrl-b d), it lives on unmanaged until they kill it or
       re-activate it from the picker)
 
+new(cwd, attach=false):
+  1. mkdir -p <cwd> if it doesn't exist
+  2. add watched.json entry (pinnedJsonl=null, pinnedAt=now)
+  3. start tmux session with fresh claude (no --resume)
+  4. remote-control activation via tmux send-keys (3 retries × 10s)
+  5. if attach → write sentinel with tmux name
+
 Picker-to-core mapping:
   off→on  ↵       → activate(cwd, jsonlId, attach=false)
   off→on  ctrl-↵  → activate(cwd, jsonlId, attach=true)
   on→off  ↵       → deactivate(cwd, kill=true,  attach=false)
   on→off  ctrl-↵  → deactivate(cwd, kill=false, attach=true)
+  ctrl-n  ↵       → new(cwd, attach=false)
+  ctrl-n  ctrl-↵  → new(cwd, attach=true)
 
 Headless CLI mapping:
+  claude-watch new <cwd>                 → new(cwd, attach=false)
   claude-watch activate <cwd>            → activate(cwd, latest, attach=false)
   claude-watch activate <cwd> --jsonl X  → activate(cwd, X,      attach=false)
   claude-watch deactivate <cwd>          → deactivate(cwd, kill=true,  attach=false)
@@ -328,7 +356,7 @@ Headless CLI mapping:
 
 ### Screens
 
-Two screens. Modal: user is on one or the other.
+Three screens. Modal: user is on one at a time.
 
 **List screen** — default on launch. Shows sessions sorted by mtime desc, paginated by `pageSize` (default 10). Each row displays:
 
@@ -347,7 +375,24 @@ Two screens. Modal: user is on one or the other.
 
 Three lines per row, one blank line between rows.
 
-**Action screen** — after pressing `↵` on a row. Shows the peek (last 7 transcript lines) and the available actions for the current state. Modal transition via `esc` to go back.
+**Action screen** — after pressing `↵` on a row. Shows the peek (last 7 transcript events) and the available actions for the current state. Modal transition via `esc` to go back.
+
+**New session screen** — after pressing `ctrl-n` from the list. Path input with tab-completion:
+
+```
+┌─ new watched session ─────────────────────────┐
+│                                                │
+│  directory › ~/projects/new-thing_             │
+│                                                │
+│  Tab-completes filesystem paths.               │
+│  Directory will be created if it doesn't exist.│
+│                                                │
+│  ↵ create + activate                           │
+│  ctrl-↵ create + activate + attach             │
+│  esc cancel                                    │
+│                                                │
+└────────────────────────────────────────────────┘
+```
 
 ### Keybindings
 
@@ -357,6 +402,7 @@ Three lines per row, one blank line between rows.
 - `pgup` / `pgdn` → page, load next/prev 10
 - `home` / `end` → first / last of loaded set
 - `↵` → select row → action screen
+- `ctrl-n` → new session screen
 - `backspace` → edit search query
 - `ctrl-u` → clear search query
 - `esc` / `ctrl-c` → quit
@@ -367,6 +413,12 @@ Three lines per row, one blank line between rows.
 - `ctrl-↵` → secondary action (same + attach)
 - `esc` / `←` → back to list
 - `q` → quit entirely
+
+**New session screen:**
+- type → path input (tab-completes filesystem paths)
+- `↵` → create + activate
+- `ctrl-↵` → create + activate + attach
+- `esc` → cancel, back to list
 
 ### Search
 
@@ -537,6 +589,7 @@ fi
 - Malformed jsonl → fallback chain through other jsonls in slug (**warn**), mark broken file with `.broken-<ts>` rename
 - Remote-control activation fails 3x → **warn** during scan, session stays running (usable, just not remote-controllable)
 - `--fork-session` rejected → retry without, log if that also fails
+- **Known issue: memory edit prompts survive bypassPermissions after `/compact`.** Claude Code appears to have a separate permission gate for auto-memory MEMORY.md edits that re-triggers after compaction even under `bypassPermissions`. New file writes (Write tool) are unaffected; only edits to existing memory files (Edit tool on MEMORY.md) prompt. No known settings-level fix as of 2026-04-14. Workaround: option 2 ("allow Claude to edit its own settings for this session") grants session-level approval. Investigate whether a future Claude Code version exposes a setting to suppress this gate.
 
 **Ripgrep**
 - rg missing → **hard fail**, exit 127, SKILL helps install
