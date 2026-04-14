@@ -37,10 +37,10 @@ export function makeFixture(): Fixture {
     stateDir,
 
     addSession(cwd: string, jsonlId: string, events: object[]): string {
-      const slug = cwd.replace(/^\//, "-").replace(/[/.]/g, "-");
+      const cwdInFixture = join(root, cwd.slice(1));
+      const slug = cwdInFixture.replace(/^\//, "-").replace(/[/.]/g, "-");
       const slugDir = join(projectsDir, slug);
       mkdirSync(slugDir, { recursive: true });
-      const cwdInFixture = join(root, cwd.slice(1));
       mkdirSync(cwdInFixture, { recursive: true });
       const jsonlPath = join(slugDir, `${jsonlId}.jsonl`);
       const content = events.map((e) => JSON.stringify(e)).join("\n") + "\n";
