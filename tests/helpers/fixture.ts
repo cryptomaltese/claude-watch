@@ -23,7 +23,7 @@ export interface WatchedEntry {
 }
 
 export function makeFixture(): Fixture {
-  const root = mkdtempSync(join(tmpdir(), "cw-fixture-"));
+  const root = mkdtempSync(join(tmpdir(), "cwfix"));
   const projectsDir = join(root, ".claude/projects");
   const stateDir = join(root, ".claude-watch");
   mkdirSync(projectsDir, { recursive: true });

@@ -16,16 +16,25 @@ export function slugToPath(
   fsRoot: string = "/"
 ): string | null {
   const candidate = slug.replace(/^-/, "/").replace(/-/g, "/");
-  const full = fsRoot === "/" ? candidate : join(fsRoot, candidate.slice(1));
 
-  if (existsSync(full)) return full;
+  // try candidate as absolute path first (handles case where slug encodes full path)
+  if (existsSync(candidate)) return candidate;
 
+  // try relative to fsRoot
+  if (fsRoot !== "/") {
+    const relative = join(fsRoot, candidate.slice(1));
+    if (existsSync(relative)) return relative;
+  }
+
+  // try dot-prefix variants
   for (const prefix of KNOWN_DOT_PREFIXES) {
     const pattern = new RegExp(`/${prefix}`, "g");
     const dotted = candidate.replace(pattern, `/.${prefix}`);
-    const fullDotted =
-      fsRoot === "/" ? dotted : join(fsRoot, dotted.slice(1));
-    if (existsSync(fullDotted)) return fullDotted;
+    if (existsSync(dotted)) return dotted;
+    if (fsRoot !== "/") {
+      const relativeDotted = join(fsRoot, dotted.slice(1));
+      if (existsSync(relativeDotted)) return relativeDotted;
+    }
   }
 
   return null;
