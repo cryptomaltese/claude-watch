@@ -5,7 +5,7 @@
   "engines": { "node": ">=20" },
   "bin": { "claude-watch": "./bin/claude-watch" },
   "scripts": {
-    "build": "bun build src/cli.ts --target=node --outfile=dist/cli.js --minify --banner=\"#!/usr/bin/env node\"",
+    "build": "bun build src/cli.ts --target=node --outfile=dist/cli.js --minify --external=react-devtools-core --banner=\"#!/usr/bin/env node\"",
     "dev": "bun run src/cli.ts",
     "test": "bun test",
     "lint": "tsc --noEmit",

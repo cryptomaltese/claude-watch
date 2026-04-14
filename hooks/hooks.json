@@ -1,16 +1,9 @@
 {
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start\"",
-            "async": true,
-            "statusMessage": "claude-watch: configuring session"
-          }
-        ]
-      }
-    ]
-  }
+  "hooks": [
+    {
+      "event": "SessionStart",
+      "command": "node dist/cli.js _hook session-start",
+      "async": true
+    }
+  ]
 }
