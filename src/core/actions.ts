@@ -24,7 +24,24 @@ interface CreateNewOpts {
   remoteControl?: boolean;
 }
 
-function buildClaudeCmd(jsonlId: string | null): string {
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function validateJsonlId(id: string): void {
+  if (!UUID_RE.test(id)) {
+    throw new Error(`invalid jsonl ID (expected UUID): ${id}`);
+  }
+}
+
+function validateCwd(cwd: string): void {
+  if (/[\t\n\r]/.test(cwd)) {
+    throw new Error(`cwd contains tab or newline — unsupported: ${cwd}`);
+  }
+  if (/[$`\\"'#]/.test(cwd)) {
+    log("warn", `cwd contains shell-sensitive characters: ${cwd}`);
+  }
+}
+
+export function buildClaudeCmd(jsonlId: string | null): string {
   let cmd = "claude --dangerously-skip-permissions --permission-mode bypassPermissions";
   if (jsonlId) cmd += ` --resume ${jsonlId} --fork-session`;
   return cmd;
@@ -53,6 +70,8 @@ async function activateRemoteControl(tmuxName: string): Promise<boolean> {
 
 export async function activate(opts: ActivateOpts): Promise<void> {
   const { cwd, jsonlId, attach = false, remoteControl } = opts;
+  validateJsonlId(jsonlId);
+  validateCwd(cwd);
   if (!existsSync(cwd)) throw new Error(`directory does not exist: ${cwd}`);
 
   const tmuxName = cwdToTmuxName(cwd);
@@ -77,6 +96,7 @@ export async function activate(opts: ActivateOpts): Promise<void> {
 
 export async function deactivate(opts: DeactivateOpts): Promise<void> {
   const { cwd, kill = true, attach = false } = opts;
+  validateCwd(cwd);
   const tmuxName = cwdToTmuxName(cwd);
 
   await withStateLock(() => {
@@ -95,6 +115,7 @@ export async function deactivate(opts: DeactivateOpts): Promise<void> {
 
 export async function createNew(opts: CreateNewOpts): Promise<void> {
   const { cwd, attach = false, remoteControl } = opts;
+  validateCwd(cwd);
   const tmuxName = cwdToTmuxName(cwd);
   const config = loadConfig();
   const enableRC = remoteControl ?? config.remoteControl;

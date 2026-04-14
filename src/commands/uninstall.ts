@@ -1,4 +1,4 @@
-import { execFileSync, execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { getConfigDir } from "../core/config.js";
 import { log } from "../core/log.js";
 
@@ -14,7 +14,7 @@ export function runUninstall(): void {
       return;
     }
     const filtered = existing.split("\n").filter((line) => !line.includes("claude-watch")).join("\n").trim() + "\n";
-    execSync(`echo '${filtered.replace(/'/g, "'\\''")}' | crontab -`);
+    execFileSync("crontab", ["-"], { input: filtered, stdio: ["pipe", "inherit", "inherit"] });
     console.log("Removed claude-watch cron entry.");
     console.log(`Config and state preserved at ${getConfigDir()}`);
     log("info", "uninstall complete");

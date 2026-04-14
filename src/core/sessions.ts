@@ -1,5 +1,6 @@
 import {
   readdirSync, readFileSync, statSync, existsSync,
+  openSync, readSync, closeSync, fstatSync,
 } from "node:fs";
 import { join, basename } from "node:path";
 import { getProjectsDir } from "./config.js";
@@ -28,6 +29,19 @@ function fsRootFromProjectsDir(projectsDir: string): string {
     return root === "" ? "/" : root;
   }
   return "/";
+}
+
+function readTail(filePath: string, bytes: number): string {
+  const fd = openSync(filePath, "r");
+  try {
+    const stat = fstatSync(fd);
+    const start = Math.max(0, stat.size - bytes);
+    const buf = Buffer.alloc(Math.min(bytes, stat.size));
+    readSync(fd, buf, 0, buf.length, start);
+    return buf.toString("utf-8");
+  } finally {
+    closeSync(fd);
+  }
 }
 
 export async function loadSessions(): Promise<Session[]> {
@@ -74,7 +88,7 @@ export async function loadSessions(): Promise<Session[]> {
 
 function extractLastEvent(jsonlPath: string): string {
   try {
-    const content = readFileSync(jsonlPath, "utf-8");
+    const content = readTail(jsonlPath, 4096);
     const lines = content.trim().split("\n").filter(Boolean);
     if (lines.length === 0) return "";
     const last = JSON.parse(lines[lines.length - 1]);
@@ -111,7 +125,7 @@ function renderEvent(event: Record<string, unknown>): string {
 
 export function validateJsonl(jsonlPath: string): boolean {
   try {
-    const content = readFileSync(jsonlPath, "utf-8");
+    const content = readTail(jsonlPath, 4096);
     const lines = content.trim().split("\n").filter(Boolean);
     if (lines.length === 0) return false;
     JSON.parse(lines[lines.length - 1]);

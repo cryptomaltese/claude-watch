@@ -4,6 +4,10 @@ import {
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
+// Default config written into each fixture to disable remoteControl
+// (which requires long timeouts) unless overridden by the test.
+const FIXTURE_CONFIG = JSON.stringify({ remoteControl: false }, null, 2) + "\n";
+
 export interface Fixture {
   root: string;
   projectsDir: string;
@@ -28,6 +32,8 @@ export function makeFixture(): Fixture {
   const stateDir = join(root, ".claude-watch");
   mkdirSync(projectsDir, { recursive: true });
   mkdirSync(stateDir, { recursive: true });
+  // Disable remoteControl by default in fixtures to avoid long delays in tests
+  writeFileSync(join(stateDir, "config.json"), FIXTURE_CONFIG);
 
   const savedEnv: Record<string, string | undefined> = {};
 

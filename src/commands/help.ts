@@ -1,5 +1,7 @@
+import { VERSION } from "../version.js";
+
 export function runHelp(): void {
-  console.log(`claude-watch v0.2.0 — persistent auto-resuscitating Claude Code sessions
+  console.log(`claude-watch v${VERSION} — persistent auto-resuscitating Claude Code sessions
 
 Usage: claude-watch [command] [args]
 

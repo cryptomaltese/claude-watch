@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { getConfigDir, ensureConfigDir } from "./core/config.js";
 import { readAndClearNotices } from "./core/notices.js";
+import { VERSION } from "./version.js";
 
 function checkDep(binary: string, name: string): void {
   try {
@@ -103,7 +104,7 @@ async function main(): Promise<void> {
     case "version":
     case "--version":
     case "-v":
-      console.log("claude-watch v0.2.0");
+      console.log(`claude-watch v${VERSION}`);
       break;
     case "help":
     case "--help":

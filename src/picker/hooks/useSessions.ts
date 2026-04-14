@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { loadSessions, type Session } from "../../core/sessions.js";
 import { loadState } from "../../core/state.js";
 import { getTmuxDriver } from "../../core/tmux.js";
@@ -9,7 +9,7 @@ export function useSessions() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
-  const config = loadConfig();
+  const config = useMemo(() => loadConfig(), []);
 
   const load = useCallback(async () => {
     setLoading(true);

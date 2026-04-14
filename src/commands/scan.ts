@@ -7,11 +7,35 @@ import { validateJsonl } from "../core/sessions.js";
 import { getProjectsDir, loadConfig } from "../core/config.js";
 import { log } from "../core/log.js";
 import { addNotice } from "../core/notices.js";
+import { buildClaudeCmd } from "../core/actions.js";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function validateJsonlId(id: string): void {
+  if (!UUID_RE.test(id)) {
+    throw new Error(`invalid jsonl ID (expected UUID): ${id}`);
+  }
+}
+
+async function activateRemoteControlAsync(tmuxName: string): Promise<void> {
+  const driver = getTmuxDriver();
+  for (let i = 1; i <= 3; i++) {
+    await new Promise((r) => setTimeout(r, 10_000));
+    driver.sendKeys(tmuxName, "/remote-control");
+    await new Promise((r) => setTimeout(r, 3_000));
+    if (/remote.control/i.test(driver.capturePane(tmuxName))) {
+      log("info", `${tmuxName} remote-control confirmed`);
+      return;
+    }
+  }
+  log("warn", `${tmuxName} remote-control not confirmed`);
+}
 
 export async function runScan(): Promise<void> {
   let alive = 0;
   let revived = 0;
   let pruned = 0;
+  const sessionsToRC: string[] = [];
 
   await withStateLock(async () => {
     let state = loadState();
@@ -41,56 +65,49 @@ export async function runScan(): Promise<void> {
       revived++;
 
       if (rolled.pinnedJsonl === null) {
-        const cmd = "claude --dangerously-skip-permissions --permission-mode bypassPermissions";
-        driver.newSession(tmuxName, entry.cwd, cmd);
+        driver.newSession(tmuxName, entry.cwd, buildClaudeCmd(null));
         log("info", `${tmuxName} started fresh (new session)`);
       } else {
-        const jsonlPath = join(slugDir, `${rolled.pinnedJsonl}.jsonl`);
+        const jsonlId = rolled.pinnedJsonl;
+        const jsonlPath = join(slugDir, `${jsonlId}.jsonl`);
 
-        if (existsSync(jsonlPath) && validateJsonl(jsonlPath)) {
-          const cmd = `claude --dangerously-skip-permissions --permission-mode bypassPermissions --resume ${rolled.pinnedJsonl} --fork-session`;
-          driver.newSession(tmuxName, entry.cwd, cmd);
-          log("info", `${tmuxName} resumed from ${rolled.pinnedJsonl}`);
+        // Validate UUID before using in command
+        const isValidUuid = UUID_RE.test(jsonlId);
+
+        if (isValidUuid && existsSync(jsonlPath) && validateJsonl(jsonlPath)) {
+          validateJsonlId(jsonlId);
+          driver.newSession(tmuxName, entry.cwd, buildClaudeCmd(jsonlId));
+          log("info", `${tmuxName} resumed from ${jsonlId}`);
         } else {
-          log("warn", `${tmuxName} pinned jsonl is invalid, trying fallbacks`);
+          if (!isValidUuid) {
+            log("warn", `${tmuxName} pinned jsonl has invalid UUID format, trying fallbacks`);
+          } else {
+            log("warn", `${tmuxName} pinned jsonl is invalid, trying fallbacks`);
+          }
           if (existsSync(jsonlPath)) {
             const ts = new Date().toISOString().replace(/[:.]/g, "-");
             renameSync(jsonlPath, `${jsonlPath}.broken-${ts}`);
           }
 
           const fallback = jsonls
-            .filter((j) => j.id !== rolled.pinnedJsonl)
+            .filter((j) => j.id !== jsonlId && UUID_RE.test(j.id))
             .sort((a, b) => b.mtime.getTime() - a.mtime.getTime())
             .find((j) => validateJsonl(join(slugDir, `${j.id}.jsonl`)));
 
           if (fallback) {
             rolled.pinnedJsonl = fallback.id;
             rolled.pinnedAt = fallback.mtime.toISOString();
-            const cmd = `claude --dangerously-skip-permissions --permission-mode bypassPermissions --resume ${fallback.id} --fork-session`;
-            driver.newSession(tmuxName, entry.cwd, cmd);
+            driver.newSession(tmuxName, entry.cwd, buildClaudeCmd(fallback.id));
             addNotice("warn", `${basename(entry.cwd)}: recovered from fallback session (pinned was malformed)`);
           } else {
-            const cmd = "claude --dangerously-skip-permissions --permission-mode bypassPermissions";
-            driver.newSession(tmuxName, entry.cwd, cmd);
+            driver.newSession(tmuxName, entry.cwd, buildClaudeCmd(null));
             addNotice("warn", `${basename(entry.cwd)}: no recoverable session — started fresh`);
           }
         }
       }
 
       if (config.remoteControl) {
-        const name = tmuxName;
-        setTimeout(async () => {
-          for (let i = 1; i <= 3; i++) {
-            await new Promise((r) => setTimeout(r, 10_000));
-            driver.sendKeys(name, "/remote-control");
-            await new Promise((r) => setTimeout(r, 3_000));
-            if (/remote.control/i.test(driver.capturePane(name))) {
-              log("info", `${name} remote-control confirmed`);
-              return;
-            }
-          }
-          log("warn", `${name} remote-control not confirmed`);
-        }, 0);
+        sessionsToRC.push(tmuxName);
       }
 
       entriesToKeep.push(rolled);
@@ -102,6 +119,15 @@ export async function runScan(): Promise<void> {
 
   if (revived > 0 || pruned > 0) {
     log("info", `scan: ${alive} alive, ${revived} revived, ${pruned} pruned`);
+  }
+
+  // After the lock is released, await all remote-control activations.
+  // Using Promise.allSettled so sessions run concurrently and we wait for all
+  // before the process exits (avoids detached setTimeout fire-and-forget).
+  if (sessionsToRC.length > 0) {
+    await Promise.allSettled(
+      sessionsToRC.map((name) => activateRemoteControlAsync(name))
+    );
   }
 }
 

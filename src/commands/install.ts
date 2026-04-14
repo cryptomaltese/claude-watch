@@ -1,4 +1,4 @@
-import { execFileSync, execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, existsSync, chmodSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { getConfigDir } from "../core/config.js";
@@ -37,7 +37,7 @@ export function runInstall(): void {
     try { existing = execFileSync("crontab", ["-l"], { encoding: "utf-8" }); } catch {}
     const filtered = existing.split("\n").filter((line) => !line.includes("claude-watch")).join("\n");
     const newCrontab = (filtered.trim() + "\n" + cronLine + "\n").trim() + "\n";
-    execSync(`echo '${newCrontab.replace(/'/g, "'\\''")}' | crontab -`);
+    execFileSync("crontab", ["-"], { input: newCrontab, stdio: ["pipe", "inherit", "inherit"] });
 
     console.log("Installed claude-watch:");
     console.log(`  Stable binary: ${destWrapper}`);

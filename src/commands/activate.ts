@@ -3,6 +3,8 @@ import { activate } from "../core/actions.js";
 import { loadSessions } from "../core/sessions.js";
 import { pathToSlug } from "../core/slug.js";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function runActivate(args: string[]): Promise<void> {
   const cwdArg = args[0];
   if (!cwdArg) {
@@ -14,7 +16,12 @@ export async function runActivate(args: string[]): Promise<void> {
   let jsonlId: string;
 
   if (jsonlIdx >= 0 && args[jsonlIdx + 1]) {
-    jsonlId = args[jsonlIdx + 1];
+    const rawId = args[jsonlIdx + 1];
+    if (!UUID_RE.test(rawId)) {
+      process.stderr.write(`claude-watch: invalid jsonl ID (expected UUID): ${rawId}\n`);
+      process.exit(1);
+    }
+    jsonlId = rawId;
   } else {
     const sessions = await loadSessions();
     const slug = pathToSlug(cwd);
