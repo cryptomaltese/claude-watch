@@ -17,9 +17,11 @@ export function App(): React.ReactElement {
   const { exit } = useApp();
 
   const {
-    sessions, allSessions, loading, page, totalPages,
-    nextPage, prevPage, reload, totalCount, watchedCount,
+    allSessions, loading, pageSize,
+    reload, watchedCount,
   } = useSessions();
+
+  const [page, setPage] = useState(0);
 
   const allIds = useMemo(
     () => new Set(allSessions.map((s) => s.jsonlId)),
@@ -28,22 +30,27 @@ export function App(): React.ReactElement {
 
   const { matchingIds, searching } = useSearch(query, allIds);
 
+  // Filter first (across ALL sessions), then paginate the result
   const filtered = matchingIds
-    ? sessions.filter((s) => matchingIds.has(s.jsonlId))
-    : sessions;
+    ? allSessions.filter((s) => matchingIds.has(s.jsonlId))
+    : allSessions;
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paged = filtered.slice(page * pageSize, (page + 1) * pageSize);
 
   useInput((input, key) => {
     if (screen !== "list") return;
     if (key.escape || (input === "c" && key.ctrl)) { exit(); }
     else if (input === "d" && key.ctrl) { exit(); }
-    else if (input === "u" && key.ctrl) { setQuery(""); setSelectedIndex(0); }
-    else if (key.backspace || key.delete) { setQuery((q) => q.slice(0, -1)); setSelectedIndex(0); }
+    else if (input === "u" && key.ctrl) { setQuery(""); setSelectedIndex(0); setPage(0); }
+    else if (key.backspace || key.delete) { setQuery((q) => q.slice(0, -1)); setSelectedIndex(0); setPage(0); }
     else if (
       input && !key.ctrl && !key.meta && !key.return &&
       !key.upArrow && !key.downArrow && !key.pageUp && !key.pageDown
     ) {
       setQuery((q) => q + input);
       setSelectedIndex(0);
+      setPage(0);
     }
   });
 
@@ -72,12 +79,14 @@ export function App(): React.ReactElement {
 
   return (
     <SessionList
-      sessions={filtered} query={query} searching={searching}
+      sessions={paged} query={query} searching={searching}
       selectedIndex={selectedIndex} onSelect={handleSelect}
       onIndexChange={setSelectedIndex} onNewSession={() => setScreen("new")}
       page={page} totalPages={totalPages}
-      totalCount={matchingIds ? matchingIds.size : totalCount}
-      watchedCount={watchedCount} onNextPage={nextPage} onPrevPage={prevPage}
+      totalCount={filtered.length}
+      watchedCount={watchedCount}
+      onNextPage={() => { setPage((p) => Math.min(p + 1, totalPages - 1)); setSelectedIndex(0); }}
+      onPrevPage={() => { setPage((p) => Math.max(p - 1, 0)); setSelectedIndex(0); }}
     />
   );
 }
