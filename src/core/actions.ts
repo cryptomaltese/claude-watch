@@ -1,9 +1,25 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { loadState, saveState, upsertEntry, removeEntry, withStateLock } from "./state.js";
-import { getTmuxDriver } from "./tmux.js";
-import { cwdToTmuxName } from "./slug.js";
+import { getTmuxDriver, type TmuxDriver } from "./tmux.js";
+import { cwdToTmuxName, cwdToTmuxNameCandidates } from "./slug.js";
 import { log } from "./log.js";
 import { loadConfig } from "./config.js";
+
+/**
+ * Find the tmux session (if any) currently running in the given cwd.
+ * Matches by candidate name (canonical slug, basename) first, then by
+ * pane_current_path for sessions with arbitrary user-chosen names.
+ * Returns the actual tmux session name, or null if none.
+ */
+export function findTmuxForCwd(driver: TmuxDriver, cwd: string): string | null {
+  for (const name of cwdToTmuxNameCandidates(cwd)) {
+    if (driver.hasSession(name)) return name;
+  }
+  for (const [name, paneCwd] of driver.getNameCwdMap()) {
+    if (paneCwd === cwd) return name;
+  }
+  return null;
+}
 
 interface ActivateOpts {
   cwd: string;
@@ -74,7 +90,6 @@ export async function activate(opts: ActivateOpts): Promise<void> {
   validateCwd(cwd);
   if (!existsSync(cwd)) throw new Error(`directory does not exist: ${cwd}`);
 
-  const tmuxName = cwdToTmuxName(cwd);
   const config = loadConfig();
   const enableRC = remoteControl ?? config.remoteControl;
 
@@ -85,7 +100,12 @@ export async function activate(opts: ActivateOpts): Promise<void> {
   });
 
   const driver = getTmuxDriver();
-  if (!driver.hasSession(tmuxName)) {
+  let tmuxName = findTmuxForCwd(driver, cwd);
+
+  if (tmuxName) {
+    log("info", `${tmuxName} adopted (already running in ${cwd})`);
+  } else {
+    tmuxName = cwdToTmuxName(cwd);
     driver.newSession(tmuxName, cwd, buildClaudeCmd(jsonlId));
     log("info", `${tmuxName} started in ${cwd}`);
     if (enableRC) await activateRemoteControl(tmuxName);
@@ -97,7 +117,6 @@ export async function activate(opts: ActivateOpts): Promise<void> {
 export async function deactivate(opts: DeactivateOpts): Promise<void> {
   const { cwd, kill = true, attach = false } = opts;
   validateCwd(cwd);
-  const tmuxName = cwdToTmuxName(cwd);
 
   await withStateLock(() => {
     const state = loadState();
@@ -105,6 +124,8 @@ export async function deactivate(opts: DeactivateOpts): Promise<void> {
   });
 
   const driver = getTmuxDriver();
+  const tmuxName = findTmuxForCwd(driver, cwd) ?? cwdToTmuxName(cwd);
+
   if (kill && driver.hasSession(tmuxName)) {
     driver.killSession(tmuxName);
     log("info", `${tmuxName} killed`);
@@ -116,7 +137,6 @@ export async function deactivate(opts: DeactivateOpts): Promise<void> {
 export async function createNew(opts: CreateNewOpts): Promise<void> {
   const { cwd, attach = false, remoteControl } = opts;
   validateCwd(cwd);
-  const tmuxName = cwdToTmuxName(cwd);
   const config = loadConfig();
   const enableRC = remoteControl ?? config.remoteControl;
 
@@ -128,10 +148,16 @@ export async function createNew(opts: CreateNewOpts): Promise<void> {
   });
 
   const driver = getTmuxDriver();
-  if (!driver.hasSession(tmuxName)) {
+  let tmuxName = findTmuxForCwd(driver, cwd);
+
+  if (tmuxName) {
+    log("info", `${tmuxName} adopted (already running in ${cwd})`);
+  } else {
+    tmuxName = cwdToTmuxName(cwd);
     driver.newSession(tmuxName, cwd, buildClaudeCmd(null));
     log("info", `${tmuxName} started fresh in ${cwd}`);
-    if (enableRC) await activateRemoteControl(tmuxName);
+    // Skip remote-control for brand-new sessions — claude hasn't loaded yet.
+    // The next scan cycle will activate RC after the session is ready.
   }
 
   if (attach) writeSentinel(tmuxName);

@@ -3,6 +3,7 @@ import { join, basename } from "node:path";
 import { loadState, saveState, rollForward, withStateLock } from "../core/state.js";
 import { getTmuxDriver } from "../core/tmux.js";
 import { cwdToTmuxName, pathToSlug } from "../core/slug.js";
+import { findTmuxForCwd } from "../core/actions.js";
 import { validateJsonl } from "../core/sessions.js";
 import { getProjectsDir, loadConfig } from "../core/config.js";
 import { log } from "../core/log.js";
@@ -54,15 +55,16 @@ export async function runScan(): Promise<void> {
       const slugDir = join(getProjectsDir(), slug);
       const jsonls = getJsonlsInSlug(slugDir);
       const rolled = rollForward(entry, jsonls);
-      const tmuxName = cwdToTmuxName(entry.cwd);
+      const existingTmux = findTmuxForCwd(driver, entry.cwd);
 
-      if (driver.hasSession(tmuxName)) {
+      if (existingTmux) {
         alive++;
         entriesToKeep.push(rolled);
         continue;
       }
 
       revived++;
+      const tmuxName = cwdToTmuxName(entry.cwd);
 
       if (rolled.pinnedJsonl === null) {
         driver.newSession(tmuxName, entry.cwd, buildClaudeCmd(null));

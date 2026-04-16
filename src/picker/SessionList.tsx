@@ -84,8 +84,14 @@ export function SessionList(props: Props): React.ReactElement {
 
         {sessions.map((session, i) => {
           const isSelected = i === selectedIndex;
-          const indicator = session.isWatched ? "●" : "○";
-          const indicatorColor = session.isWatched ? theme.accent : theme.dim;
+          const indicator = session.isAlive ? "●" : "○";
+          const indicatorColor = session.isAlive
+            ? theme.accent
+            : session.isWatched ? theme.fg : theme.dim;
+          const nameColor = session.isAlive
+            ? theme.fg
+            : session.isWatched ? theme.fg : theme.dim;
+          const detailColor = session.isAlive ? theme.fg : theme.dim;
           const name = session.cwd
             ? session.cwd.split("/").pop() ?? session.slug
             : session.slug;
@@ -95,18 +101,28 @@ export function SessionList(props: Props): React.ReactElement {
               <Box>
                 {isSelected && <Text color={theme.accent}>❯ </Text>}
                 {!isSelected && <Text>  </Text>}
-                <Text color={indicatorColor}>{indicator} </Text>
-                <Text color={isSelected ? theme.fg : theme.dim} bold={isSelected}>
+                <Text color={indicatorColor} bold={session.isAlive}>{indicator} </Text>
+                <Text color={nameColor} bold={session.isAlive || isSelected}>
                   {name}
                 </Text>
                 <Text color={theme.dim}>  {relativeTime(session.mtime)}</Text>
-                {session.isWatched && <Text color={theme.dim}>  watched</Text>}
+                {session.isAlive && <Text color={theme.accent} bold>  live</Text>}
+                {session.isWatched && !session.isAlive && (
+                  <Text color={theme.dim}>  watched · dead</Text>
+                )}
+                {session.isWatched && session.isAlive && (
+                  <Text color={theme.dim}>  watched</Text>
+                )}
               </Box>
               <Box marginLeft={4}>
-                <Text color={theme.dim}>{session.cwd ?? session.slug}</Text>
+                <Text color={detailColor} dimColor={!session.isAlive}>
+                  {session.cwd ?? session.slug}
+                </Text>
               </Box>
               <Box marginLeft={4}>
-                <Text color={theme.dim}>&quot;{session.lastEvent}&quot;</Text>
+                <Text color={detailColor} dimColor={!session.isAlive}>
+                  &quot;{session.lastEvent}&quot;
+                </Text>
               </Box>
             </Box>
           );

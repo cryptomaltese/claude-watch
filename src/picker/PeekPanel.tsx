@@ -29,9 +29,9 @@ export function PeekPanel({ jsonlPath }: Props): React.ReactElement {
         <Text color={theme.dim}>reading transcript…</Text>
       ) : (
         lines.map((line, i) => (
-          <Text key={i} color={theme.dim} wrap="truncate">
-            {line}
-          </Text>
+          <Box key={i} marginBottom={1}>
+            <Text color={theme.dim} wrap="wrap">{line}</Text>
+          </Box>
         ))
       )}
     </Box>

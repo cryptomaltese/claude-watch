@@ -11,29 +11,31 @@ export function pathToSlug(cwd: string): string {
   return normalized.replace(/^\//, "-").replace(/[/.]/g, "-");
 }
 
+function normalize(p: string): string {
+  // Collapse runs of consecutive slashes to a single slash.
+  return p.replace(/\/+/g, "/");
+}
+
 export function slugToPath(
   slug: string,
   fsRoot: string = "/"
 ): string | null {
   const candidate = slug.replace(/^-/, "/").replace(/-/g, "/");
 
-  // try candidate as absolute path first (handles case where slug encodes full path)
-  if (existsSync(candidate)) return candidate;
+  if (existsSync(candidate)) return normalize(candidate);
 
-  // try relative to fsRoot
   if (fsRoot !== "/") {
     const relative = join(fsRoot, candidate.slice(1));
-    if (existsSync(relative)) return relative;
+    if (existsSync(relative)) return normalize(relative);
   }
 
-  // try dot-prefix variants
   for (const prefix of KNOWN_DOT_PREFIXES) {
     const pattern = new RegExp(`/${prefix}`, "g");
     const dotted = candidate.replace(pattern, `/.${prefix}`);
-    if (existsSync(dotted)) return dotted;
+    if (existsSync(dotted)) return normalize(dotted);
     if (fsRoot !== "/") {
       const relativeDotted = join(fsRoot, dotted.slice(1));
-      if (existsSync(relativeDotted)) return relativeDotted;
+      if (existsSync(relativeDotted)) return normalize(relativeDotted);
     }
   }
 
@@ -42,4 +44,16 @@ export function slugToPath(
 
 export function cwdToTmuxName(cwd: string): string {
   return `claude-${pathToSlug(cwd)}`;
+}
+
+/**
+ * All tmux session names that could correspond to a given cwd.
+ * Returns the canonical slug-based name first, then legacy basename format
+ * (from the bash version of claude-watch).
+ */
+export function cwdToTmuxNameCandidates(cwd: string): string[] {
+  const basename = cwd.replace(/\/+$/, "").split("/").pop() ?? "";
+  const canonical = cwdToTmuxName(cwd);
+  const legacy = `claude-${basename}`;
+  return canonical === legacy ? [canonical] : [canonical, legacy];
 }

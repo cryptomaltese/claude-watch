@@ -1,6 +1,6 @@
 import { loadState } from "../core/state.js";
 import { getTmuxDriver } from "../core/tmux.js";
-import { cwdToTmuxName } from "../core/slug.js";
+import { findTmuxForCwd } from "../core/actions.js";
 import { basename } from "node:path";
 
 export function runStatus(): void {
@@ -20,8 +20,8 @@ export function runStatus(): void {
   );
 
   for (const entry of state.entries) {
-    const tmuxName = cwdToTmuxName(entry.cwd);
-    const alive = driver.hasSession(tmuxName);
+    const tmuxName = findTmuxForCwd(driver, entry.cwd);
+    const alive = tmuxName !== null;
     const status = alive ? "ALIVE" : "DEAD";
     const pinned = entry.pinnedJsonl ? entry.pinnedJsonl.slice(0, 8) + "..." : "(new)";
     console.log(

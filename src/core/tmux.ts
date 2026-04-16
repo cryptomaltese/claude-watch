@@ -7,6 +7,10 @@ export interface TmuxDriver {
   sendKeys(name: string, keys: string): void;
   capturePane(name: string): string;
   listSessions(): string[];
+  /** Set of tmux session working directories (resolved via pane_current_path). */
+  listSessionCwds(): Set<string>;
+  /** Map of session name → pane_current_path. */
+  getNameCwdMap(): Map<string, string>;
 }
 
 export class RealTmuxDriver implements TmuxDriver {
@@ -35,6 +39,20 @@ export class RealTmuxDriver implements TmuxDriver {
       return out.trim().split("\n").filter(Boolean);
     } catch { return []; }
   }
+  listSessionCwds(): Set<string> {
+    return new Set(this.getNameCwdMap().values());
+  }
+  getNameCwdMap(): Map<string, string> {
+    try {
+      const out = execFileSync("tmux", ["ls", "-F", "#{session_name}\t#{pane_current_path}"], { encoding: "utf-8" });
+      const map = new Map<string, string>();
+      for (const line of out.trim().split("\n").filter(Boolean)) {
+        const [name, path] = line.split("\t");
+        if (name && path) map.set(name, path);
+      }
+      return map;
+    } catch { return new Map(); }
+  }
 }
 
 interface MockSession {
@@ -57,6 +75,14 @@ export class MockTmuxDriver implements TmuxDriver {
   }
   capturePane(name: string): string { return this.sessions.get(name)?.paneContent ?? ""; }
   listSessions(): string[] { return Array.from(this.sessions.keys()); }
+  listSessionCwds(): Set<string> {
+    return new Set(Array.from(this.sessions.values()).map((s) => s.cwd));
+  }
+  getNameCwdMap(): Map<string, string> {
+    const map = new Map<string, string>();
+    for (const [name, s] of this.sessions) map.set(name, s.cwd);
+    return map;
+  }
 }
 
 let _driver: TmuxDriver | null = null;
