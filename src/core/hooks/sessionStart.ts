@@ -11,6 +11,9 @@ interface HookOutput {
   message?: string;
 }
 
+const PERM_FREE_MODES = ["auto", "bypassPermissions"] as const;
+type PermFreeMode = (typeof PERM_FREE_MODES)[number];
+
 export function sessionStartHook(input: HookInput): HookOutput {
   const warnings: string[] = [];
 
@@ -18,29 +21,27 @@ export function sessionStartHook(input: HookInput): HookOutput {
   if (existsSync(settingsPath)) {
     try {
       const settings = JSON.parse(readFileSync(settingsPath, "utf-8"));
-      if (settings?.permissions?.defaultMode !== "bypassPermissions") {
+      const defaultMode = settings?.permissions?.defaultMode;
+      const isPermFree = PERM_FREE_MODES.includes(defaultMode as PermFreeMode);
+
+      if (!isPermFree) {
         warnings.push(
-          "claude-watch: permissions.defaultMode is not bypassPermissions in settings.json. " +
-          "Watched sessions may prompt for permissions on resume."
+          `claude-watch: permissions.defaultMode is '${defaultMode ?? "(unset)"}' — ` +
+          `expected 'auto' (recommended) or 'bypassPermissions'. Watched sessions may prompt.`
+        );
+      }
+
+      // Auto mode requires enableAutoMode to be unlocked in settings.
+      if (defaultMode === "auto" && settings?.enableAutoMode !== true) {
+        warnings.push(
+          "claude-watch: permissions.defaultMode is 'auto' but enableAutoMode is not true in settings.json. " +
+          "Each new session will prompt to enable auto mode."
         );
       }
     } catch {}
   }
 
-  const localPath = join(input.cwd, ".claude", "settings.local.json");
-  if (existsSync(localPath)) {
-    try {
-      const local = JSON.parse(readFileSync(localPath, "utf-8"));
-      const allowList = local?.permissions?.allow;
-      if (Array.isArray(allowList) && allowList.length > 0) {
-        warnings.push(
-          `claude-watch: ${localPath} has an explicit allow list — ` +
-          "it may override the global bypass mode."
-        );
-      }
-    } catch {}
-  }
-
-  if (warnings.length === 0) return { result: "ok" };
-  return { result: "warn", message: warnings.join("\n") };
+  return warnings.length === 0
+    ? { result: "ok" }
+    : { result: "warn", message: warnings.join("\n") };
 }

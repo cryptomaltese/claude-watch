@@ -27,6 +27,24 @@ describe("config", () => {
     expect(cfg.pageSize).toBe(10);
     expect(cfg.remoteControl).toBe(true);
     expect(cfg.resume).toBe(true);
+    expect(cfg.permissionMode).toBe("auto");
+    expect(cfg.dangerouslySkipPermissions).toBe(false);
+  });
+
+  test("accepts valid permissionMode", () => {
+    writeFileSync(
+      join(dir, "config.json"),
+      JSON.stringify({ permissionMode: "bypassPermissions", dangerouslySkipPermissions: true })
+    );
+    const cfg = loadConfig();
+    expect(cfg.permissionMode).toBe("bypassPermissions");
+    expect(cfg.dangerouslySkipPermissions).toBe(true);
+  });
+
+  test("falls back to default for invalid permissionMode", () => {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ permissionMode: "lolcat" }));
+    const cfg = loadConfig();
+    expect(cfg.permissionMode).toBe("auto");
   });
 
   test("merges config file values with defaults", () => {

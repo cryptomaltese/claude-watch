@@ -58,7 +58,10 @@ function validateCwd(cwd: string): void {
 }
 
 export function buildClaudeCmd(jsonlId: string | null): string {
-  let cmd = "claude --dangerously-skip-permissions --permission-mode bypassPermissions";
+  const config = loadConfig();
+  let cmd = "claude";
+  if (config.dangerouslySkipPermissions) cmd += " --dangerously-skip-permissions";
+  cmd += ` --permission-mode ${config.permissionMode}`;
   if (jsonlId) cmd += ` --resume ${jsonlId} --fork-session`;
   return cmd;
 }

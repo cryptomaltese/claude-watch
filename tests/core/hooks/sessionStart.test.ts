@@ -9,31 +9,64 @@ describe("sessionStartHook", () => {
   beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "hook-test-")); });
   afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
-  test("returns ok when bypassPermissions is set", () => {
+  test("returns ok when defaultMode is auto and enableAutoMode is true", () => {
     const settingsDir = join(dir, ".claude");
     mkdirSync(settingsDir, { recursive: true });
-    writeFileSync(join(settingsDir, "settings.json"), JSON.stringify({ permissions: { defaultMode: "bypassPermissions" } }));
+    writeFileSync(
+      join(settingsDir, "settings.json"),
+      JSON.stringify({ permissions: { defaultMode: "auto" }, enableAutoMode: true })
+    );
     const result = sessionStartHook({ claudeHome: settingsDir, cwd: dir });
     expect(result.result).toBe("ok");
   });
 
-  test("warns when bypassPermissions is not set", () => {
+  test("returns ok when defaultMode is bypassPermissions", () => {
     const settingsDir = join(dir, ".claude");
     mkdirSync(settingsDir, { recursive: true });
-    writeFileSync(join(settingsDir, "settings.json"), JSON.stringify({ permissions: {} }));
+    writeFileSync(
+      join(settingsDir, "settings.json"),
+      JSON.stringify({ permissions: { defaultMode: "bypassPermissions" } })
+    );
     const result = sessionStartHook({ claudeHome: settingsDir, cwd: dir });
-    expect(result.result).toBe("warn");
-    expect(result.message).toContain("bypassPermissions");
+    expect(result.result).toBe("ok");
   });
 
-  test("warns when local settings has allow list", () => {
+  test("warns when defaultMode is auto but enableAutoMode is not true", () => {
     const settingsDir = join(dir, ".claude");
     mkdirSync(settingsDir, { recursive: true });
-    writeFileSync(join(settingsDir, "settings.json"), JSON.stringify({ permissions: { defaultMode: "bypassPermissions" } }));
-    const localDir = join(dir, ".claude");
-    writeFileSync(join(localDir, "settings.local.json"), JSON.stringify({ permissions: { allow: ["Bash(*)"] } }));
+    writeFileSync(
+      join(settingsDir, "settings.json"),
+      JSON.stringify({ permissions: { defaultMode: "auto" } })
+    );
     const result = sessionStartHook({ claudeHome: settingsDir, cwd: dir });
     expect(result.result).toBe("warn");
-    expect(result.message).toContain("allow");
+    expect(result.message).toContain("enableAutoMode");
+  });
+
+  test("warns when defaultMode is neither auto nor bypassPermissions", () => {
+    const settingsDir = join(dir, ".claude");
+    mkdirSync(settingsDir, { recursive: true });
+    writeFileSync(
+      join(settingsDir, "settings.json"),
+      JSON.stringify({ permissions: {} })
+    );
+    const result = sessionStartHook({ claudeHome: settingsDir, cwd: dir });
+    expect(result.result).toBe("warn");
+    expect(result.message).toMatch(/auto|bypassPermissions/);
+  });
+
+  test("ignores local settings.local.json allow list (not a real bypass override)", () => {
+    const settingsDir = join(dir, ".claude");
+    mkdirSync(settingsDir, { recursive: true });
+    writeFileSync(
+      join(settingsDir, "settings.json"),
+      JSON.stringify({ permissions: { defaultMode: "bypassPermissions" } })
+    );
+    writeFileSync(
+      join(settingsDir, "settings.local.json"),
+      JSON.stringify({ permissions: { allow: ["Bash(*)"] } })
+    );
+    const result = sessionStartHook({ claudeHome: settingsDir, cwd: dir });
+    expect(result.result).toBe("ok");
   });
 });
