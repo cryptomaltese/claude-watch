@@ -60,6 +60,15 @@ export async function runScan(): Promise<void> {
       if (existingTmux) {
         alive++;
         entriesToKeep.push(rolled);
+        // Activate RC on alive sessions that aren't yet RC-confirmed.
+        // Handles brand-new sessions from createNew (which skips RC to avoid
+        // blocking the user while claude loads) and sessions where RC dropped.
+        if (
+          config.remoteControl &&
+          !/remote.control/i.test(driver.capturePane(existingTmux))
+        ) {
+          sessionsToRC.push(existingTmux);
+        }
         continue;
       }
 

@@ -1,4 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { runScan } from "../../src/commands/scan";
 import { loadState } from "../../src/core/state";
 import { setTmuxDriver, MockTmuxDriver } from "../../src/core/tmux";
@@ -53,6 +55,26 @@ describe("scan command", () => {
     ]);
     await runScan();
     expect(loadState().entries).toHaveLength(0);
+  });
+
+  test("skips RC activation when alive session already shows Remote Control active", async () => {
+    // Enable remoteControl in this fixture's config so the branch is exercised.
+    writeFileSync(
+      join(f.stateDir, "config.json"),
+      JSON.stringify({ remoteControl: true }, null, 2) + "\n"
+    );
+    f.addSession("/home/user/proj", OLD_ID, [makeUserEvent("hi")]);
+    f.addWatched([
+      { cwd: `${f.root}/home/user/proj`, pinnedJsonl: OLD_ID, pinnedAt: "2026-01-01T00:00:00Z" },
+    ]);
+    const { cwdToTmuxName } = await import("../../src/core/slug");
+    const tmuxName = cwdToTmuxName(`${f.root}/home/user/proj`);
+    mockTmux.newSession(tmuxName, `${f.root}/home/user/proj`, "claude running");
+    // Simulate that claude has RC already active in the pane.
+    mockTmux.sessions.get(tmuxName)!.paneContent = "prompt ready · Remote Control active";
+    await runScan();
+    // No /remote-control command should have been queued — RC already visible.
+    expect(mockTmux.sessions.get(tmuxName)!.keys).toEqual([]);
   });
 
   test("rolls forward to newer jsonl", async () => {
