@@ -75,6 +75,20 @@ export async function runScan(): Promise<void> {
       revived++;
       const tmuxName = cwdToTmuxName(entry.cwd);
 
+      // When scan revives multiple sessions in one cycle, tmux new-session
+      // calls fired back-to-back (within milliseconds) race with systemd's
+      // user manager trying to establish a cgroup scope for each pane. The
+      // loser of the race sees "Couldn't move process X to cgroup: No such
+      // process" → scope creation fails → systemd kills the orphaned claude
+      // process. Next cycle revives it, same race, infinite loop.
+      //
+      // Spacing the calls gives systemd room to finish each scope cleanly
+      // before the next pane spawns. 500ms is empirically enough on this
+      // box; not critical to tune precisely since scan runs every 5 min.
+      if (revived > 1) {
+        await new Promise((r) => setTimeout(r, 500));
+      }
+
       if (rolled.pinnedJsonl === null) {
         driver.newSession(tmuxName, entry.cwd, buildClaudeCmd(null));
         log("info", `${tmuxName} started fresh (new session)`);
