@@ -11,9 +11,12 @@ interface Props {
   onBack: () => void;
 }
 
+type SelectedAction = "primary" | "secondary";
+
 export function ActionMenu({ session, onBack }: Props): React.ReactElement {
   const [status, setStatus] = useState<"idle" | "working" | "done">("idle");
   const [resultMsg, setResultMsg] = useState("");
+  const [selected, setSelected] = useState<SelectedAction>("primary");
   const { exit } = useApp();
 
   const name = session.cwd ? basename(session.cwd) : session.slug;
@@ -50,10 +53,10 @@ export function ActionMenu({ session, onBack }: Props): React.ReactElement {
       onBack();
     } else if (input === "q") {
       exit();
-    } else if (key.return && key.ctrl) {
-      doAction(true);
+    } else if (key.upArrow || key.downArrow) {
+      setSelected((s) => (s === "primary" ? "secondary" : "primary"));
     } else if (key.return) {
-      doAction(false);
+      doAction(selected === "secondary");
     }
   });
 
@@ -77,13 +80,23 @@ export function ActionMenu({ session, onBack }: Props): React.ReactElement {
         {status === "idle" && (
           <>
             <Box marginTop={1}>
-              <Text color={theme.fg}>↵   {primaryLabel}</Text>
+              <Text color={selected === "primary" ? theme.accent : theme.dim}>
+                {selected === "primary" ? "❯ " : "  "}
+              </Text>
+              <Text color={selected === "primary" ? theme.accent : theme.fg} bold={selected === "primary"}>
+                {primaryLabel}
+              </Text>
             </Box>
             <Box>
-              <Text color={theme.fg}>^↵  {secondaryLabel}</Text>
+              <Text color={selected === "secondary" ? theme.accent : theme.dim}>
+                {selected === "secondary" ? "❯ " : "  "}
+              </Text>
+              <Text color={selected === "secondary" ? theme.accent : theme.fg} bold={selected === "secondary"}>
+                {secondaryLabel}
+              </Text>
             </Box>
             <Box marginTop={1}>
-              <Text color={theme.dim}>esc back to list</Text>
+              <Text color={theme.dim}>↑↓ nav · ↵ select · esc back</Text>
             </Box>
           </>
         )}

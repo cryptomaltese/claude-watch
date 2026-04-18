@@ -159,8 +159,10 @@ export async function createNew(opts: CreateNewOpts): Promise<void> {
     tmuxName = cwdToTmuxName(cwd);
     driver.newSession(tmuxName, cwd, buildClaudeCmd(null));
     log("info", `${tmuxName} started fresh in ${cwd}`);
-    // Skip remote-control for brand-new sessions — claude hasn't loaded yet.
-    // The next scan cycle will activate RC after the session is ready.
+    // When not attaching, await RC so the session is visible in Desktop
+    // by the time this returns. When attaching, skip RC — the user will
+    // interact with claude directly and can run /remote-control themselves.
+    if (enableRC && !attach) await activateRemoteControl(tmuxName);
   }
 
   if (attach) writeSentinel(tmuxName);

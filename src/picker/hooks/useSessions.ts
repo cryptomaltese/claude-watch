@@ -45,9 +45,15 @@ export function useSessions() {
         cwdToTmuxNameCandidates(s.cwd).some((name) => driver.hasSession(name)) ||
         tmuxCwds.has(s.cwd)
       );
+      // "watched" means this specific entry represents the pinned jsonl for a
+      // watched cwd — only the newest-per-cwd does. Older forks share the cwd
+      // but aren't what's actually being tracked, so showing them as watched
+      // misleads the user about what deactivate would affect.
+      const isWatched =
+        s.cwd !== null && watchedCwds.has(s.cwd) && isNewestInCwd;
       return {
         ...s,
-        isWatched: s.cwd !== null && watchedCwds.has(s.cwd),
+        isWatched,
         isAlive: isNewestInCwd && tmuxAlive,
       };
     });
