@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Box, Text, useInput, useApp } from "ink";
 import { theme } from "./theme.js";
 import type { Session } from "../core/sessions.js";
-import { activate, deactivate } from "../core/actions.js";
+import { activate, deactivate, refresh } from "../core/actions.js";
 import { PeekPanel } from "./PeekPanel.js";
 import { basename } from "node:path";
 
@@ -11,34 +11,53 @@ interface Props {
   onBack: () => void;
 }
 
-type SelectedAction = "primary" | "secondary";
+type ActionKind = "primary" | "refresh";
+
+interface MenuAction {
+  label: string;
+  attach: boolean;
+  kind: ActionKind;
+}
 
 export function ActionMenu({ session, onBack }: Props): React.ReactElement {
   const [status, setStatus] = useState<"idle" | "working" | "done">("idle");
   const [resultMsg, setResultMsg] = useState("");
-  const [selected, setSelected] = useState<SelectedAction>("primary");
+  const [selectedIdx, setSelectedIdx] = useState(0);
   const { exit } = useApp();
 
   const name = session.cwd ? basename(session.cwd) : session.slug;
   const stateLabel = session.isWatched ? "ON" : "OFF";
   const primaryLabel = session.isWatched ? "deactivate" : "activate";
-  const secondaryLabel = session.isWatched
-    ? "deactivate + attach"
-    : "activate + attach";
+  const canRefresh = Boolean(session.isAlive && session.jsonlId);
 
-  async function doAction(attach: boolean): Promise<void> {
+  const actions: MenuAction[] = [
+    { label: primaryLabel, attach: false, kind: "primary" },
+    { label: `${primaryLabel} + attach`, attach: true, kind: "primary" },
+    ...(canRefresh
+      ? [
+          { label: "refresh (restart claude)", attach: false, kind: "refresh" as const },
+          { label: "refresh + attach", attach: true, kind: "refresh" as const },
+        ]
+      : []),
+  ];
+
+  async function runAction(action: MenuAction): Promise<void> {
     if (!session.cwd) return;
     setStatus("working");
     try {
-      if (session.isWatched) {
-        await deactivate({ cwd: session.cwd, kill: !attach, attach });
+      if (action.kind === "refresh") {
+        await refresh({ cwd: session.cwd, jsonlId: session.jsonlId, attach: action.attach });
+        setResultMsg(action.attach ? "✓ refreshed — attaching" : "✓ refreshed");
+      } else if (session.isWatched) {
+        await deactivate({ cwd: session.cwd, kill: !action.attach, attach: action.attach });
+        setResultMsg(action.attach ? "✓ deactivated — attaching" : "✓ deactivated");
       } else {
-        await activate({ cwd: session.cwd, jsonlId: session.jsonlId, attach });
+        await activate({ cwd: session.cwd, jsonlId: session.jsonlId, attach: action.attach });
+        setResultMsg(action.attach ? "✓ activated — attaching" : "✓ activated");
       }
-      setResultMsg(`✓ ${primaryLabel}d`);
       setStatus("done");
       setTimeout(() => {
-        if (attach) exit();
+        if (action.attach) exit();
         else onBack();
       }, 500);
     } catch (err) {
@@ -53,10 +72,12 @@ export function ActionMenu({ session, onBack }: Props): React.ReactElement {
       onBack();
     } else if (input === "q") {
       exit();
-    } else if (key.upArrow || key.downArrow) {
-      setSelected((s) => (s === "primary" ? "secondary" : "primary"));
+    } else if (key.upArrow) {
+      setSelectedIdx((i) => (i - 1 + actions.length) % actions.length);
+    } else if (key.downArrow) {
+      setSelectedIdx((i) => (i + 1) % actions.length);
     } else if (key.return) {
-      doAction(selected === "secondary");
+      runAction(actions[Math.min(selectedIdx, actions.length - 1)]);
     }
   });
 
@@ -79,22 +100,22 @@ export function ActionMenu({ session, onBack }: Props): React.ReactElement {
         {status === "done" && <Text color={theme.accent}>{resultMsg}</Text>}
         {status === "idle" && (
           <>
-            <Box marginTop={1}>
-              <Text color={selected === "primary" ? theme.accent : theme.dim}>
-                {selected === "primary" ? "❯ " : "  "}
-              </Text>
-              <Text color={selected === "primary" ? theme.accent : theme.fg} bold={selected === "primary"}>
-                {primaryLabel}
-              </Text>
-            </Box>
-            <Box>
-              <Text color={selected === "secondary" ? theme.accent : theme.dim}>
-                {selected === "secondary" ? "❯ " : "  "}
-              </Text>
-              <Text color={selected === "secondary" ? theme.accent : theme.fg} bold={selected === "secondary"}>
-                {secondaryLabel}
-              </Text>
-            </Box>
+            {actions.map((action, idx) => {
+              const isSelected = idx === selectedIdx;
+              return (
+                <Box key={action.label}>
+                  <Text color={isSelected ? theme.accent : theme.dim}>
+                    {isSelected ? "❯ " : "  "}
+                  </Text>
+                  <Text
+                    color={isSelected ? theme.accent : theme.fg}
+                    bold={isSelected}
+                  >
+                    {action.label}
+                  </Text>
+                </Box>
+              );
+            })}
             <Box marginTop={1}>
               <Text color={theme.dim}>↑↓ nav · ↵ select · esc back</Text>
             </Box>

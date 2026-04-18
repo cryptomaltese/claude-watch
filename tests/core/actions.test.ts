@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { activate, deactivate, createNew } from "../../src/core/actions";
+import { activate, deactivate, createNew, refresh } from "../../src/core/actions";
 import { loadState } from "../../src/core/state";
 import { setTmuxDriver, MockTmuxDriver } from "../../src/core/tmux";
 import { makeFixture, makeUserEvent, type Fixture } from "../helpers/fixture";
@@ -93,5 +93,43 @@ describe("actions", () => {
     await expect(
       activate({ cwd, jsonlId: "not-a-uuid", remoteControl: false })
     ).rejects.toThrow("invalid jsonl ID");
+  });
+
+  test("refresh kills existing tmux and respawns with --resume", async () => {
+    f.addSession("/home/user/proj", JSONL_ID, [makeUserEvent("hi")]);
+    const cwd = `${f.root}/home/user/proj`;
+    const { cwdToTmuxName } = await import("../../src/core/slug");
+    const tmuxName = cwdToTmuxName(cwd);
+    mockTmux.newSession(tmuxName, cwd, "old claude");
+
+    await refresh({ cwd, jsonlId: JSONL_ID, remoteControl: false });
+
+    // Session should still exist but with a new command
+    expect(mockTmux.hasSession(tmuxName)).toBe(true);
+    const session = mockTmux.sessions.get(tmuxName)!;
+    expect(session.cmd).not.toBe("old claude");
+    expect(session.cmd).toContain(`--resume ${JSONL_ID}`);
+  });
+
+  test("refresh leaves watched.json untouched for watched sessions", async () => {
+    f.addSession("/home/user/proj", JSONL_ID, [makeUserEvent("hi")]);
+    const cwd = `${f.root}/home/user/proj`;
+    f.addWatched([{ cwd, pinnedJsonl: JSONL_ID, pinnedAt: "2026-01-01T00:00:00Z" }]);
+
+    await refresh({ cwd, jsonlId: JSONL_ID, remoteControl: false });
+
+    const state = loadState();
+    expect(state.entries).toHaveLength(1);
+    expect(state.entries[0].cwd).toBe(cwd);
+  });
+
+  test("refresh leaves watched.json untouched for unwatched sessions", async () => {
+    f.addSession("/home/user/proj", JSONL_ID, [makeUserEvent("hi")]);
+    const cwd = `${f.root}/home/user/proj`;
+
+    await refresh({ cwd, jsonlId: JSONL_ID, remoteControl: false });
+
+    const state = loadState();
+    expect(state.entries).toHaveLength(0);
   });
 });

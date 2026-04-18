@@ -40,6 +40,13 @@ interface CreateNewOpts {
   remoteControl?: boolean;
 }
 
+interface RefreshOpts {
+  cwd: string;
+  jsonlId: string;
+  attach?: boolean;
+  remoteControl?: boolean;
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function validateJsonlId(id: string): void {
@@ -165,5 +172,35 @@ export async function createNew(opts: CreateNewOpts): Promise<void> {
     if (enableRC && !attach) await activateRemoteControl(tmuxName);
   }
 
+  if (attach) writeSentinel(tmuxName);
+}
+
+/**
+ * Kill the running claude in this cwd's tmux and respawn it fresh, resuming
+ * from the given jsonlId. Leaves watched.json untouched — watched stays
+ * watched, unwatched stays unwatched. Useful after installing a new MCP,
+ * skill, or CLAUDE.md change, so the session picks up the new config.
+ */
+export async function refresh(opts: RefreshOpts): Promise<void> {
+  const { cwd, jsonlId, attach = false, remoteControl } = opts;
+  validateJsonlId(jsonlId);
+  validateCwd(cwd);
+  if (!existsSync(cwd)) throw new Error(`directory does not exist: ${cwd}`);
+
+  const config = loadConfig();
+  const enableRC = remoteControl ?? config.remoteControl;
+
+  const driver = getTmuxDriver();
+  const existing = findTmuxForCwd(driver, cwd);
+  if (existing) {
+    driver.killSession(existing);
+    log("info", `${existing} killed for refresh`);
+  }
+
+  const tmuxName = cwdToTmuxName(cwd);
+  driver.newSession(tmuxName, cwd, buildClaudeCmd(jsonlId));
+  log("info", `${tmuxName} refreshed — resumed from ${jsonlId}`);
+
+  if (enableRC && !attach) await activateRemoteControl(tmuxName);
   if (attach) writeSentinel(tmuxName);
 }
