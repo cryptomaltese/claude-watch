@@ -7,6 +7,7 @@ interface Props {
   sessions: Session[];
   query: string;
   searching: boolean;
+  searchFocused: boolean;
   selectedIndex: number;
   onSelect: (session: Session) => void;
   onIndexChange: (index: number) => void;
@@ -33,7 +34,7 @@ function relativeTime(date: Date): string {
 
 export function SessionList(props: Props): React.ReactElement {
   const {
-    sessions, query, searching, selectedIndex,
+    sessions, query, searching, searchFocused, selectedIndex,
     onSelect, onIndexChange, onNewSession,
     page, totalPages, totalCount, watchedCount,
     onNextPage, onPrevPage,
@@ -72,9 +73,17 @@ export function SessionList(props: Props): React.ReactElement {
       </Box>
 
       <Box paddingX={1}>
-        <Text color={theme.dim}>search › </Text>
-        <Text color={theme.fg}>{query || ""}</Text>
-        <Text color={theme.dim}>_</Text>
+        {/*
+          Subtle cues:
+          - searchFocused flips the label color (accent vs dim) and shows
+            a bright "_" cursor, so the user can tell typing lands here.
+          - query.length > 0 makes the typed text accent-colored, so the
+            "filter is active" state is visible even when focus is on the
+            list.
+        */}
+        <Text color={searchFocused ? theme.accent : theme.dim}>search › </Text>
+        <Text color={query.length > 0 ? theme.accent : theme.fg}>{query}</Text>
+        {searchFocused && <Text color={theme.accent}>_</Text>}
       </Box>
 
       <Box flexDirection="column" paddingX={1} marginTop={1}>

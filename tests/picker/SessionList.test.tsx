@@ -28,7 +28,7 @@ describe("SessionList", () => {
     ];
     const { lastFrame } = render(
       <SessionList
-        sessions={sessions} query="" searching={false} selectedIndex={0}
+        sessions={sessions} query="" searching={false} searchFocused={false} selectedIndex={0}
         onSelect={noop} onIndexChange={noop} onNewSession={noop}
         page={0} totalPages={1} totalCount={2} watchedCount={1}
         onNextPage={noop} onPrevPage={noop}
@@ -43,7 +43,7 @@ describe("SessionList", () => {
   test("shows empty message when no matches", () => {
     const { lastFrame } = render(
       <SessionList
-        sessions={[]} query="nonexistent" searching={false} selectedIndex={0}
+        sessions={[]} query="nonexistent" searching={false} searchFocused={true} selectedIndex={0}
         onSelect={noop} onIndexChange={noop} onNewSession={noop}
         page={0} totalPages={1} totalCount={0} watchedCount={0}
         onNextPage={noop} onPrevPage={noop}

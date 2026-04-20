@@ -14,6 +14,10 @@ export function App(): React.ReactElement {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  // Tracks where the user's last input landed — search field vs list.
+  // Not enforced (both handlers keep listening), just a display hint so
+  // we can color the search label/cursor when typing is "active".
+  const [searchFocused, setSearchFocused] = useState(false);
   const { exit } = useApp();
 
   const {
@@ -42,15 +46,24 @@ export function App(): React.ReactElement {
     if (screen !== "list") return;
     if (key.escape || (input === "c" && key.ctrl)) { exit(); }
     else if (input === "d" && key.ctrl) { exit(); }
-    else if (input === "u" && key.ctrl) { setQuery(""); setSelectedIndex(0); setPage(0); }
-    else if (key.backspace || key.delete) { setQuery((q) => q.slice(0, -1)); setSelectedIndex(0); setPage(0); }
+    else if (input === "u" && key.ctrl) {
+      setQuery(""); setSelectedIndex(0); setPage(0); setSearchFocused(true);
+    }
+    else if (key.backspace || key.delete) {
+      setQuery((q) => q.slice(0, -1)); setSelectedIndex(0); setPage(0);
+      setSearchFocused(true);
+    }
+    else if (key.upArrow || key.downArrow || key.pageUp || key.pageDown) {
+      // Nav goes to SessionList — mark search as unfocused.
+      setSearchFocused(false);
+    }
     else if (
-      input && !key.ctrl && !key.meta && !key.return &&
-      !key.upArrow && !key.downArrow && !key.pageUp && !key.pageDown
+      input && !key.ctrl && !key.meta && !key.return
     ) {
       setQuery((q) => q + input);
       setSelectedIndex(0);
       setPage(0);
+      setSearchFocused(true);
     }
   });
 
@@ -94,6 +107,7 @@ export function App(): React.ReactElement {
   return (
     <SessionList
       sessions={paged} query={query} searching={searching}
+      searchFocused={searchFocused}
       selectedIndex={selectedIndex} onSelect={handleSelect}
       onIndexChange={setSelectedIndex} onNewSession={() => setScreen("new")}
       page={page} totalPages={totalPages}
