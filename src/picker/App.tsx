@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from "react";
-import { Box, Text, useInput, useApp, useStdout } from "ink";
+import React, { useState, useMemo, useEffect, useRef } from "react";
+import { Box, Text, useInput, useApp } from "ink";
 import { SessionList } from "./SessionList.js";
 import { ActionMenu } from "./ActionMenu.js";
 import { NewSessionInput } from "./NewSessionInput.js";
@@ -15,7 +15,6 @@ export function App(): React.ReactElement {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const { exit } = useApp();
-  const { stdout } = useStdout();
 
   const {
     allSessions, loading, pageSize,
@@ -66,37 +65,42 @@ export function App(): React.ReactElement {
     reload();
   }
 
-  // Outer container pinned to terminal dimensions so every screen transition
-  // produces a constant-size frame. Prevents row-count deltas between
-  // renders that some terminals (PuTTY, nested tmux) mis-reconcile — the
-  // "double panel" artifact visible after refresh→back→reselect.
-  const outerHeight = stdout?.rows ?? 24;
+  // Force a full alt-screen clear + cursor-home on every screen transition.
+  // Ink's incremental frame diffing leaves stale content on refresh→back→
+  // reselect paths under some terminals (content that was previously
+  // erased below the cursor re-appears on the next draw). Writing the
+  // clear before the next Ink frame gives every screen a guaranteed blank
+  // canvas to draw on.
+  const lastScreenRef = useRef<Screen | null>(null);
+  useEffect(() => {
+    if (lastScreenRef.current !== null && lastScreenRef.current !== screen) {
+      process.stdout.write("\x1B[2J\x1B[H");
+    }
+    lastScreenRef.current = screen;
+  }, [screen]);
 
-  let content: React.ReactElement;
   if (loading) {
-    content = <Box paddingX={1}><Text>loading sessions…</Text></Box>;
-  } else if (screen === "action" && selectedSession) {
-    content = <ActionMenu session={selectedSession} onBack={handleBack} />;
-  } else if (screen === "new") {
-    content = <NewSessionInput onBack={handleBack} />;
-  } else {
-    content = (
-      <SessionList
-        sessions={paged} query={query} searching={searching}
-        selectedIndex={selectedIndex} onSelect={handleSelect}
-        onIndexChange={setSelectedIndex} onNewSession={() => setScreen("new")}
-        page={page} totalPages={totalPages}
-        totalCount={filtered.length}
-        watchedCount={watchedCount}
-        onNextPage={() => { setPage((p) => Math.min(p + 1, totalPages - 1)); setSelectedIndex(0); }}
-        onPrevPage={() => { setPage((p) => Math.max(p - 1, 0)); setSelectedIndex(0); }}
-      />
-    );
+    return <Box paddingX={1}><Text>loading sessions…</Text></Box>;
+  }
+
+  if (screen === "action" && selectedSession) {
+    return <ActionMenu session={selectedSession} onBack={handleBack} />;
+  }
+
+  if (screen === "new") {
+    return <NewSessionInput onBack={handleBack} />;
   }
 
   return (
-    <Box flexDirection="column" height={outerHeight} overflow="hidden">
-      {content}
-    </Box>
+    <SessionList
+      sessions={paged} query={query} searching={searching}
+      selectedIndex={selectedIndex} onSelect={handleSelect}
+      onIndexChange={setSelectedIndex} onNewSession={() => setScreen("new")}
+      page={page} totalPages={totalPages}
+      totalCount={filtered.length}
+      watchedCount={watchedCount}
+      onNextPage={() => { setPage((p) => Math.min(p + 1, totalPages - 1)); setSelectedIndex(0); }}
+      onPrevPage={() => { setPage((p) => Math.max(p - 1, 0)); setSelectedIndex(0); }}
+    />
   );
 }
