@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Box, Text, useInput, useApp } from "ink";
+import { Box, Text, useInput, useApp, useStdout } from "ink";
 import { SessionList } from "./SessionList.js";
 import { ActionMenu } from "./ActionMenu.js";
 import { NewSessionInput } from "./NewSessionInput.js";
@@ -15,6 +15,7 @@ export function App(): React.ReactElement {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const { exit } = useApp();
+  const { stdout } = useStdout();
 
   const {
     allSessions, loading, pageSize,
@@ -65,28 +66,37 @@ export function App(): React.ReactElement {
     reload();
   }
 
+  // Outer container pinned to terminal dimensions so every screen transition
+  // produces a constant-size frame. Prevents row-count deltas between
+  // renders that some terminals (PuTTY, nested tmux) mis-reconcile — the
+  // "double panel" artifact visible after refresh→back→reselect.
+  const outerHeight = stdout?.rows ?? 24;
+
+  let content: React.ReactElement;
   if (loading) {
-    return <Box paddingX={1}><Text>loading sessions…</Text></Box>;
-  }
-
-  if (screen === "action" && selectedSession) {
-    return <ActionMenu session={selectedSession} onBack={handleBack} />;
-  }
-
-  if (screen === "new") {
-    return <NewSessionInput onBack={handleBack} />;
+    content = <Box paddingX={1}><Text>loading sessions…</Text></Box>;
+  } else if (screen === "action" && selectedSession) {
+    content = <ActionMenu session={selectedSession} onBack={handleBack} />;
+  } else if (screen === "new") {
+    content = <NewSessionInput onBack={handleBack} />;
+  } else {
+    content = (
+      <SessionList
+        sessions={paged} query={query} searching={searching}
+        selectedIndex={selectedIndex} onSelect={handleSelect}
+        onIndexChange={setSelectedIndex} onNewSession={() => setScreen("new")}
+        page={page} totalPages={totalPages}
+        totalCount={filtered.length}
+        watchedCount={watchedCount}
+        onNextPage={() => { setPage((p) => Math.min(p + 1, totalPages - 1)); setSelectedIndex(0); }}
+        onPrevPage={() => { setPage((p) => Math.max(p - 1, 0)); setSelectedIndex(0); }}
+      />
+    );
   }
 
   return (
-    <SessionList
-      sessions={paged} query={query} searching={searching}
-      selectedIndex={selectedIndex} onSelect={handleSelect}
-      onIndexChange={setSelectedIndex} onNewSession={() => setScreen("new")}
-      page={page} totalPages={totalPages}
-      totalCount={filtered.length}
-      watchedCount={watchedCount}
-      onNextPage={() => { setPage((p) => Math.min(p + 1, totalPages - 1)); setSelectedIndex(0); }}
-      onPrevPage={() => { setPage((p) => Math.max(p - 1, 0)); setSelectedIndex(0); }}
-    />
+    <Box flexDirection="column" height={outerHeight} overflow="hidden">
+      {content}
+    </Box>
   );
 }
