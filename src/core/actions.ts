@@ -69,7 +69,10 @@ export function buildClaudeCmd(jsonlId: string | null): string {
   let cmd = "claude";
   if (config.dangerouslySkipPermissions) cmd += " --dangerously-skip-permissions";
   cmd += ` --permission-mode ${config.permissionMode}`;
-  if (jsonlId) cmd += ` --resume ${jsonlId} --fork-session`;
+  if (jsonlId) {
+    cmd += ` --resume ${jsonlId}`;
+    if (config.forkOnResume) cmd += " --fork-session";
+  }
   return cmd;
 }
 

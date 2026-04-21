@@ -46,6 +46,39 @@ describe("actions", () => {
     expect(session.cmd).toContain(`--resume ${JSONL_ID}`);
   });
 
+  test("buildClaudeCmd omits --fork-session by default", async () => {
+    const { buildClaudeCmd } = await import("../../src/core/actions");
+    const cmd = buildClaudeCmd(JSONL_ID);
+    expect(cmd).toContain(`--resume ${JSONL_ID}`);
+    expect(cmd).not.toContain("--fork-session");
+  });
+
+  test("buildClaudeCmd appends --fork-session when forkOnResume=true", async () => {
+    const { writeFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    writeFileSync(
+      join(process.env.CLAUDE_WATCH_CONFIG_DIR!, "config.json"),
+      JSON.stringify({ forkOnResume: true })
+    );
+    const { buildClaudeCmd } = await import("../../src/core/actions");
+    const cmd = buildClaudeCmd(JSONL_ID);
+    expect(cmd).toContain(`--resume ${JSONL_ID}`);
+    expect(cmd).toContain("--fork-session");
+  });
+
+  test("buildClaudeCmd omits --fork-session when no jsonlId (fresh session)", async () => {
+    const { writeFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    writeFileSync(
+      join(process.env.CLAUDE_WATCH_CONFIG_DIR!, "config.json"),
+      JSON.stringify({ forkOnResume: true })
+    );
+    const { buildClaudeCmd } = await import("../../src/core/actions");
+    const cmd = buildClaudeCmd(null);
+    expect(cmd).not.toContain("--resume");
+    expect(cmd).not.toContain("--fork-session");
+  });
+
   test("activate writes sentinel when attach=true", async () => {
     const sentinelPath = `${f.root}/sentinel`;
     process.env.CLAUDE_WATCH_SENTINEL = sentinelPath;
