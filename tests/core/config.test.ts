@@ -31,6 +31,11 @@ describe("config", () => {
     expect(cfg.dangerouslySkipPermissions).toBe(false);
   });
 
+  test("forkOnResume defaults to false", () => {
+    const cfg = loadConfig();
+    expect(cfg.forkOnResume).toBe(false);
+  });
+
   test("accepts valid permissionMode", () => {
     writeFileSync(
       join(dir, "config.json"),
@@ -73,5 +78,23 @@ describe("config", () => {
     delete process.env.CLAUDE_WATCH_PROJECTS_DIR;
     const result = getProjectsDir();
     expect(result).toMatch(/\.claude\/projects$/);
+  });
+
+  test("forkOnResume round-trips from config file", () => {
+    writeFileSync(
+      join(dir, "config.json"),
+      JSON.stringify({ forkOnResume: true })
+    );
+    const cfg = loadConfig();
+    expect(cfg.forkOnResume).toBe(true);
+  });
+
+  test("forkOnResume falls back to default for non-boolean value", () => {
+    writeFileSync(
+      join(dir, "config.json"),
+      JSON.stringify({ forkOnResume: "yes" })
+    );
+    const cfg = loadConfig();
+    expect(cfg.forkOnResume).toBe(false);
   });
 });
