@@ -72,10 +72,17 @@ export function ActionMenu({ session, onBack }: Props): React.ReactElement {
       onBack();
     } else if (input === "q") {
       exit();
-    } else if (key.upArrow) {
-      setSelectedIdx((i) => (i - 1 + actions.length) % actions.length);
-    } else if (key.downArrow) {
-      setSelectedIdx((i) => (i + 1) % actions.length);
+    } else if (key.upArrow || key.downArrow) {
+      // Clear Ink's frame state before the re-render so the incremental
+      // diff draws against a known-blank terminal. Otherwise arrow-nav
+      // within ActionMenu stacks a ghost panel above the active frame.
+      const inkClear = (globalThis as { __claudeWatchInkClear?: () => void }).__claudeWatchInkClear;
+      inkClear?.();
+      setSelectedIdx((i) =>
+        key.upArrow
+          ? (i - 1 + actions.length) % actions.length
+          : (i + 1) % actions.length
+      );
     } else if (key.return) {
       runAction(actions[Math.min(selectedIdx, actions.length - 1)]);
     }

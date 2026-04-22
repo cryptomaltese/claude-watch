@@ -75,6 +75,13 @@ export function App(): React.ReactElement {
   function handleBack(): void {
     setScreen("list");
     setSelectedSession(null);
+    // Reset list cursor + page so the user lands at the top of the
+    // freshly-reloaded list. The just-acted-on session is likely the
+    // newest mtime now (post-refresh / post-activate), so position 0
+    // points at it anyway. Keeping the old selectedIndex caused the
+    // cursor to land on a random row since positions shift on reload.
+    setSelectedIndex(0);
+    setPage(0);
     reload();
   }
 

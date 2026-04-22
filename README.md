@@ -120,6 +120,7 @@ Full design spec: [`docs/superpowers/specs/`](docs/superpowers/specs/). Rewrite 
 - **Permission model shift.** The recommended `defaultMode: "auto"` applies to *all* claude sessions on the box. If you run workflows that rely on prompt-every-time, they'll behave differently.
 - **Remote-control is best-effort.** Three retries, then claude-watch logs and moves on. Session stays alive; run `/remote-control` yourself if needed.
 - **Single-user.** Assumes one user with one `~/.claude/`.
+- **Desktop sidebar lingers after refresh.** When you `refresh` a session, Claude Desktop keeps the dead session listed in its sidebar alongside the new one. You have to click the new entry once to switch. Out of our control — Desktop doesn't garbage-collect stale Remote Control registrations on its own.
 
 ## Development
 
