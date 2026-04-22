@@ -1,7 +1,12 @@
 import React from "react";
-import { Box, Text, useInput } from "ink";
+import { Box, Text, useInput, useStdout } from "ink";
 import { theme } from "./theme.js";
 import type { Session } from "../core/sessions.js";
+
+// Embedded at bundle time by bun's banner hook — used so users can verify
+// they're running the expected build and not a stale cached copy.
+declare const __CW_BUILD__: string;
+const buildStamp = typeof __CW_BUILD__ !== "undefined" ? __CW_BUILD__ : "dev";
 
 interface Props {
   sessions: Session[];
@@ -58,11 +63,15 @@ export function SessionList(props: Props): React.ReactElement {
     }
   });
 
+  const { stdout } = useStdout();
+  const termDims = `${stdout?.columns ?? "?"}×${stdout?.rows ?? "?"}`;
   const statusLine = [
     `${totalCount} sessions`,
     `${watchedCount} watched`,
     query ? `filter: ${query}` : null,
     searching ? "searching…" : null,
+    `term ${termDims}`,
+    `build ${buildStamp}`,
   ].filter(Boolean).join(" · ");
 
   return (
