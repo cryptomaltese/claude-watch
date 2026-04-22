@@ -73,19 +73,25 @@ export function ActionMenu({ session, onBack }: Props): React.ReactElement {
     } else if (input === "q") {
       exit();
     } else if (key.upArrow || key.downArrow) {
-      // Defensive: stack an ANSI clear on top of Ink's clear. Ink's own
-      // API was insufficient in testing (ghost panel persisted on
-      // arrow-nav). Raw clear wipes whatever's on screen; Ink.clear()
-      // resets logUpdate's internal row tracker so the next React
-      // commit doesn't diff against a phantom previous frame.
+      // Big hammer: ANSI clear + Ink.clear() + force a full rerender.
+      // Previous attempts (ANSI alone, Ink.clear alone, both stacked)
+      // all left the ghost panel in place on arrow-nav. rerender()
+      // bypasses Ink's incremental diff entirely — every keystroke
+      // draws the tree from scratch.
       process.stdout.write("\x1B[2J\x1B[H");
-      const inkClear = (globalThis as { __claudeWatchInkClear?: () => void }).__claudeWatchInkClear;
-      inkClear?.();
+      const g = globalThis as {
+        __claudeWatchInkClear?: () => void;
+        __claudeWatchInkRerender?: () => void;
+      };
+      g.__claudeWatchInkClear?.();
       setSelectedIdx((i) =>
         key.upArrow
           ? (i - 1 + actions.length) % actions.length
           : (i + 1) % actions.length
       );
+      // rerender after setState so React's new tree is what Ink draws.
+      // setTimeout(0) defers to next tick, after React commits.
+      setTimeout(() => g.__claudeWatchInkRerender?.(), 0);
     } else if (key.return) {
       runAction(actions[Math.min(selectedIdx, actions.length - 1)]);
     }

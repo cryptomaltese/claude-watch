@@ -34,11 +34,17 @@ export async function runPick(): Promise<void> {
 
   try {
     const instance = render(React.createElement(App));
-    // Expose Ink's clear() to the App so screen transitions reset Ink's
-    // internal frame-diff state, not just the terminal. Raw ANSI clears
-    // (\x1B[2J\x1B[H) wipe the pixels but leave Ink thinking it drew N
-    // rows — the next re-render then writes below the real cursor.
-    (globalThis as { __claudeWatchInkClear?: () => void }).__claudeWatchInkClear = instance.clear;
+    // Expose Ink's clear() and rerender() so the App can force a clean
+    // repaint on screen transitions and arrow-nav. clear() resets
+    // logUpdate's row tracker; rerender() forces a full React+Ink pass.
+    // Raw ANSI clears wipe pixels but don't fix Ink's internal state —
+    // the result is ghost frames stacking on state changes.
+    const globalRef = globalThis as {
+      __claudeWatchInkClear?: () => void;
+      __claudeWatchInkRerender?: () => void;
+    };
+    globalRef.__claudeWatchInkClear = () => instance.clear();
+    globalRef.__claudeWatchInkRerender = () => instance.rerender(React.createElement(App));
     await instance.waitUntilExit();
   } finally {
     restore();
