@@ -19,19 +19,6 @@ Each item below maps to a config key (see [Config reference](#config-reference))
 - **Rich picker UX.** Alt-screen buffer (clean exit), focus/filter cues, transcript peek panel, ripgrep filtering across cwd and transcript content. Tuned via `peekLines` and `pageSize`.
 - **Companion SKILLs.** `claude-watch` teaches an in-session claude agent how to operate the plugin; `claude-watch-install` walks a new user through settings, comparing current state against defaults and applying approved changes only.
 
-## claude-watch vs /resume
-
-| | `/resume` | claude-watch |
-|---|---|---|
-| Session list | Live, built on demand from `~/.claude/projects/` | Same source, plus persistent `watched.json` registry |
-| Scope | All cwds by default; `Ctrl+A` narrows to current repo | All cwds, joined with live tmux + watched state |
-| Lifecycle | You start it, you kill it | Cron keeps watched sessions alive; dies → resurrects ≤ 5 min |
-| Remote control | Manual `/remote-control` per session | Auto-wired on spawn |
-| Config reload | Restart manually, lose active buffer | `refresh` kills + respawns, keeps jsonl lineage |
-| Footprint | None | Cron entry, `~/.claude-watch/`, edits to `~/.claude/settings.json` |
-
-claude-watch doesn't replace `/resume` — use whichever fits the moment. `/resume` stays perfect for quick one-shots; claude-watch is there when you want the list to outlive your terminal.
-
 ## Install
 
 Not yet marketplace-listed. Manual install from a clone:
