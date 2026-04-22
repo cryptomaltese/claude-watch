@@ -73,9 +73,12 @@ export function ActionMenu({ session, onBack }: Props): React.ReactElement {
     } else if (input === "q") {
       exit();
     } else if (key.upArrow || key.downArrow) {
-      // Clear Ink's frame state before the re-render so the incremental
-      // diff draws against a known-blank terminal. Otherwise arrow-nav
-      // within ActionMenu stacks a ghost panel above the active frame.
+      // Defensive: stack an ANSI clear on top of Ink's clear. Ink's own
+      // API was insufficient in testing (ghost panel persisted on
+      // arrow-nav). Raw clear wipes whatever's on screen; Ink.clear()
+      // resets logUpdate's internal row tracker so the next React
+      // commit doesn't diff against a phantom previous frame.
+      process.stdout.write("\x1B[2J\x1B[H");
       const inkClear = (globalThis as { __claudeWatchInkClear?: () => void }).__claudeWatchInkClear;
       inkClear?.();
       setSelectedIdx((i) =>
