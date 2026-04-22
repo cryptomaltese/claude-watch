@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Box, Text } from "ink";
+import { Box, Text, useStdout } from "ink";
 import { extractPeek } from "../core/sessions.js";
 import { loadConfig } from "../core/config.js";
 import { theme } from "./theme.js";
@@ -8,29 +8,60 @@ interface Props {
   jsonlPath: string;
 }
 
-export function PeekPanel({ jsonlPath }: Props): React.ReactElement {
+// ActionMenu chrome around the peek panel: outer border (2), padding-y
+// (2), name line (1), margin-top before peek (1), margin-top before
+// actions (1), actions header (1), up to 4 action rows, margin-top
+// before hint (1), hint (1). Sum: ~14 rows of non-peek content at most.
+// The peek panel itself adds its own header (2 rows: title + separator).
+// Each peek event renders as 1 content row + 1 marginBottom = 2 rows.
+const CHROME_ROWS = 14;
+const PEEK_HEADER_ROWS = 2;
+const ROWS_PER_PEEK_EVENT = 2;
+
+export function PeekPanel({ jsonlPath }: Props): React.ReactElement | null {
   const [lines, setLines] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const config = loadConfig();
+  const { stdout } = useStdout();
+  const terminalRows = stdout?.rows ?? 24;
+
+  // Cap peek events to fit the terminal. Fallback to config.peekLines if
+  // there's comfortably enough room.
+  const roomForEvents = Math.max(
+    0,
+    Math.floor((terminalRows - CHROME_ROWS - PEEK_HEADER_ROWS) / ROWS_PER_PEEK_EVENT),
+  );
+  const maxDisplayed = Math.min(config.peekLines, roomForEvents);
 
   useEffect(() => {
     setLoading(true);
+    // Fetch enough to satisfy max possible display; actual shown is
+    // capped by maxDisplayed at render time.
     extractPeek(jsonlPath, config.peekLines).then((result) => {
       setLines(result);
       setLoading(false);
     });
   }, [jsonlPath, config.peekLines]);
 
-  // Content clips at the App-level fixed-size container if it would overflow
-  // the terminal viewport. Keep this Box as a natural-size flex child.
+  // On very short terminals, hide the peek panel entirely to make room
+  // for the critical actions. The name line at the top still gives the
+  // user session context.
+  if (maxDisplayed < 1) return null;
+
+  const displayed = lines.slice(0, maxDisplayed);
+  const truncated = lines.length > maxDisplayed;
+
   return (
     <Box flexDirection="column" paddingX={1} flexShrink={1} overflow="hidden">
-      <Text color={theme.dim}>peek (last {config.peekLines})</Text>
+      <Text color={theme.dim}>
+        peek (last {displayed.length}
+        {truncated ? ` of ${lines.length} — terminal size limit` : ""})
+      </Text>
       <Text color={theme.dim}>{"─".repeat(60)}</Text>
       {loading ? (
         <Text color={theme.dim}>reading transcript…</Text>
       ) : (
-        lines.map((line, i) => (
+        displayed.map((line, i) => (
           <Box key={i} marginBottom={1}>
             <Text color={theme.dim} wrap="wrap">{line}</Text>
           </Box>
