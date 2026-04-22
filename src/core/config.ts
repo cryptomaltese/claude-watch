@@ -32,17 +32,6 @@ export interface Config {
    * Off by default. Opt-in for users who explicitly want the nuclear option.
    */
   dangerouslySkipPermissions: boolean;
-  /**
-   * When true, resumes use `--fork-session`, which creates a new jsonl branch
-   * for every respawn. Safer against concurrent writers, but loses Desktop
-   * conversation titles and breaks continuity across respawns.
-   *
-   * Off by default: claude-watch funnels every spawn through findTmuxForCwd,
-   * so at most one claude runs per cwd — concurrent writers are impossible
-   * within claude-watch. Enable this only if you also run `claude --resume`
-   * manually outside tmux on a cwd that claude-watch already manages.
-   */
-  forkOnResume: boolean;
 }
 
 const DEFAULTS: Config = {
@@ -52,7 +41,6 @@ const DEFAULTS: Config = {
   resume: true,
   permissionMode: "auto",
   dangerouslySkipPermissions: false,
-  forkOnResume: false,
 };
 
 export function getConfigDir(): string {
@@ -92,10 +80,6 @@ export function loadConfig(): Config {
         typeof parsed.dangerouslySkipPermissions === "boolean"
           ? parsed.dangerouslySkipPermissions
           : DEFAULTS.dangerouslySkipPermissions,
-      forkOnResume:
-        typeof parsed.forkOnResume === "boolean"
-          ? parsed.forkOnResume
-          : DEFAULTS.forkOnResume,
     };
   } catch {
     const ts = new Date().toISOString().replace(/[:.]/g, "-");

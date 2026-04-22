@@ -1,5 +1,7 @@
 # Optional --fork-session Implementation Plan
 
+> **SUPERSEDED 2026-04-22.** This plan shipped in commits `bf5ae4d` + `9c59bca`, then was reverted because the boolean-config shape was wrong. Forking is a rare deliberate action (name the fork, choose watching disposition for OG vs fork, choose attach target) — not a workflow toggle. A future plan will design Fork as a picker-level action with its own subflow. Preserved here as historical context; do NOT execute.
+>
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make `--fork-session` opt-in via a new `forkOnResume` config key (default `false`) so respawns preserve the original jsonl and Claude Desktop keeps the user's session title.

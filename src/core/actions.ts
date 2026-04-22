@@ -69,10 +69,12 @@ export function buildClaudeCmd(jsonlId: string | null): string {
   let cmd = "claude";
   if (config.dangerouslySkipPermissions) cmd += " --dangerously-skip-permissions";
   cmd += ` --permission-mode ${config.permissionMode}`;
-  if (jsonlId) {
-    cmd += ` --resume ${jsonlId}`;
-    if (config.forkOnResume) cmd += " --fork-session";
-  }
+  // No --fork-session: claude-watch funnels every spawn through findTmuxForCwd,
+  // so at most one claude runs per cwd. Forking creates a new jsonl branch on
+  // every respawn and loses Desktop conversation continuity — never the right
+  // default. Explicit forking will be a picker-level action (TODO), not a
+  // config toggle.
+  if (jsonlId) cmd += ` --resume ${jsonlId}`;
   return cmd;
 }
 

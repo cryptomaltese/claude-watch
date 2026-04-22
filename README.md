@@ -15,7 +15,6 @@ Each item below maps to a config key (see [Config reference](#config-reference))
 - **Remote Control automation on spawn.** Every new/activated/refreshed session auto-runs `/remote-control` so Desktop and mobile see it within seconds. Controlled by `remoteControl` (default `true`). Set `false` if you never open Desktop.
 - **Hot refresh — kill + respawn claude keeping jsonl lineage.** Install a new MCP, edit a skill, update `CLAUDE.md` — refresh from the picker kills the pane and respawns claude with `--resume <id>`. Conversation carries forward; the new config loads on startup. Controlled by `resume` (default `true`).
 - **Configurable permission mode.** Spawns pass `--permission-mode <mode>` so you don't hit the native memory-dir prompt on every startup under Desktop. Controlled by `permissionMode` (default `"auto"`) and the nuclear opt-in `dangerouslySkipPermissions` (default `false`).
-- **Opt-in `--fork-session`.** Off by default so Desktop keeps the same conversation title across respawns. Flip on only if you also run `claude --resume` outside tmux on a watched cwd. Controlled by `forkOnResume` (default `false`).
 - **Rich picker UX.** Alt-screen buffer (clean exit), focus/filter cues, transcript peek panel, ripgrep filtering across cwd and transcript content. Tuned via `peekLines` and `pageSize`.
 - **Companion SKILLs.** `claude-watch` teaches an in-session claude agent how to operate the plugin; `claude-watch-install` walks a new user through settings, comparing current state against defaults and applying approved changes only.
 
@@ -82,7 +81,6 @@ Optional file at `~/.claude-watch/config.json`. Source of truth: [`src/core/conf
 | `resume` | `true` | Resume from latest jsonl on respawn vs. start fresh |
 | `permissionMode` | `"auto"` | Passed via `--permission-mode`. `auto` routes through the classifier, which allows routine memory writes. |
 | `dangerouslySkipPermissions` | `false` | Adds `--dangerously-skip-permissions`. Opt-in; hits the native memory-dir prompt. |
-| `forkOnResume` | `false` | Append `--fork-session` on resume. Off preserves Desktop conversation continuity. |
 
 Env vars:
 

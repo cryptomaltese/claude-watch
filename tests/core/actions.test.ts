@@ -46,33 +46,14 @@ describe("actions", () => {
     expect(session.cmd).toContain(`--resume ${JSONL_ID}`);
   });
 
-  test("buildClaudeCmd omits --fork-session by default", async () => {
+  test("buildClaudeCmd never appends --fork-session", async () => {
     const { buildClaudeCmd } = await import("../../src/core/actions");
     const cmd = buildClaudeCmd(JSONL_ID);
     expect(cmd).toContain(`--resume ${JSONL_ID}`);
     expect(cmd).not.toContain("--fork-session");
   });
 
-  test("buildClaudeCmd appends --fork-session when forkOnResume=true", async () => {
-    const { writeFileSync } = await import("node:fs");
-    const { join } = await import("node:path");
-    writeFileSync(
-      join(process.env.CLAUDE_WATCH_CONFIG_DIR!, "config.json"),
-      JSON.stringify({ forkOnResume: true })
-    );
-    const { buildClaudeCmd } = await import("../../src/core/actions");
-    const cmd = buildClaudeCmd(JSONL_ID);
-    expect(cmd).toContain(`--resume ${JSONL_ID}`);
-    expect(cmd).toContain("--fork-session");
-  });
-
-  test("buildClaudeCmd omits --fork-session when no jsonlId (fresh session)", async () => {
-    const { writeFileSync } = await import("node:fs");
-    const { join } = await import("node:path");
-    writeFileSync(
-      join(process.env.CLAUDE_WATCH_CONFIG_DIR!, "config.json"),
-      JSON.stringify({ forkOnResume: true })
-    );
+  test("buildClaudeCmd omits --resume when no jsonlId (fresh session)", async () => {
     const { buildClaudeCmd } = await import("../../src/core/actions");
     const cmd = buildClaudeCmd(null);
     expect(cmd).not.toContain("--resume");
