@@ -33,8 +33,13 @@ export async function runPick(): Promise<void> {
   process.on("SIGTERM", () => { restore(); process.exit(143); });
 
   try {
-    const { waitUntilExit } = render(React.createElement(App));
-    await waitUntilExit();
+    const instance = render(React.createElement(App));
+    // Expose Ink's clear() to the App so screen transitions reset Ink's
+    // internal frame-diff state, not just the terminal. Raw ANSI clears
+    // (\x1B[2J\x1B[H) wipe the pixels but leave Ink thinking it drew N
+    // rows — the next re-render then writes below the real cursor.
+    (globalThis as { __claudeWatchInkClear?: () => void }).__claudeWatchInkClear = instance.clear;
+    await instance.waitUntilExit();
   } finally {
     restore();
   }

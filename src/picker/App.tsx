@@ -78,16 +78,18 @@ export function App(): React.ReactElement {
     reload();
   }
 
-  // Force a full alt-screen clear + cursor-home on every screen transition.
-  // Ink's incremental frame diffing leaves stale content on refresh→back→
-  // reselect paths under some terminals (content that was previously
-  // erased below the cursor re-appears on the next draw). Writing the
-  // clear before the next Ink frame gives every screen a guaranteed blank
-  // canvas to draw on.
+  // Force a full repaint on every screen transition via Ink's clear().
+  // Ink's own API clears the terminal AND resets its internal frame-diff
+  // state — critical: raw ANSI clears wipe pixels but leave Ink thinking
+  // it drew N rows, so the next re-render (e.g., arrow-nav within the
+  // new screen) ends up writing below the real cursor, producing a
+  // ghost panel. The clear is exposed on globalThis by pick.ts so the
+  // App can reach it without threading refs through the whole tree.
   const lastScreenRef = useRef<Screen | null>(null);
   useEffect(() => {
     if (lastScreenRef.current !== null && lastScreenRef.current !== screen) {
-      process.stdout.write("\x1B[2J\x1B[H");
+      const inkClear = (globalThis as { __claudeWatchInkClear?: () => void }).__claudeWatchInkClear;
+      inkClear?.();
     }
     lastScreenRef.current = screen;
   }, [screen]);
