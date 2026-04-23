@@ -1,9 +1,10 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { activate, deactivate, createNew, refresh } from "../../src/core/actions";
+import { activate, deactivate, createNew, refresh, fork } from "../../src/core/actions";
 import { loadState } from "../../src/core/state";
 import { setTmuxDriver, MockTmuxDriver } from "../../src/core/tmux";
 import { makeFixture, makeUserEvent, type Fixture } from "../helpers/fixture";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync, utimesSync } from "node:fs";
+import { join } from "node:path";
 
 // Use valid UUIDs in tests (UUID v4 format required by validateJsonlId)
 const JSONL_ID = "abc12345-1234-1234-1234-abc123456789";
@@ -145,5 +146,109 @@ describe("actions", () => {
 
     const state = loadState();
     expect(state.entries).toHaveLength(0);
+  });
+
+  // ─── fork ──────────────────────────────────────────────────────────
+
+  async function prepareSource(srcCwd: string): Promise<string> {
+    const srcJsonlPath = f.addSession(srcCwd, JSONL_ID, [makeUserEvent("hi")]);
+    // Age the jsonl so the active-turn guard doesn't fire
+    const aged = (Date.now() - 10_000) / 1000;
+    utimesSync(srcJsonlPath, aged, aged);
+    return srcJsonlPath;
+  }
+
+  test("fork copies source jsonl as breadcrumb and spawns claude with --fork-session", async () => {
+    const srcJsonlPath = await prepareSource("/home/user/src");
+    const targetCwd = `${f.root}/home/user/tgt`;
+
+    await fork({ cwd: targetCwd, srcJsonlPath, srcJsonlId: JSONL_ID, remoteControl: false });
+
+    // Target project dir contains the breadcrumb copy of the source jsonl
+    const { pathToSlug } = await import("../../src/core/slug");
+    const targetProjectDir = join(f.projectsDir, pathToSlug(targetCwd));
+    expect(existsSync(join(targetProjectDir, `${JSONL_ID}.jsonl`))).toBe(true);
+
+    // Tmux spawn happened with --resume <id> --fork-session
+    const sessions = Array.from(mockTmux.sessions.values());
+    expect(sessions.length).toBe(1);
+    expect(sessions[0].cmd).toContain(`--resume ${JSONL_ID}`);
+    expect(sessions[0].cmd).toContain("--fork-session");
+    expect(sessions[0].cwd).toBe(targetCwd);
+
+    // Target cwd is now watched (pinnedJsonl null — fork's new id is unknown at spawn)
+    const state = loadState();
+    expect(state.entries).toHaveLength(1);
+    expect(state.entries[0].cwd).toBe(targetCwd);
+    expect(state.entries[0].pinnedJsonl).toBeNull();
+  });
+
+  test("fork refuses when source jsonl has recent mtime (active turn)", async () => {
+    const srcJsonlPath = f.addSession("/home/user/src", JSONL_ID, [makeUserEvent("hi")]);
+    // fresh mtime — within the 2s guard
+    const targetCwd = `${f.root}/home/user/tgt`;
+
+    await expect(
+      fork({ cwd: targetCwd, srcJsonlPath, srcJsonlId: JSONL_ID, remoteControl: false })
+    ).rejects.toThrow(/active turn/);
+
+    expect(mockTmux.sessions.size).toBe(0);
+    expect(loadState().entries).toHaveLength(0);
+  });
+
+  test("fork refuses when target cwd is already watched", async () => {
+    const srcJsonlPath = await prepareSource("/home/user/src");
+    const targetCwd = `${f.root}/home/user/tgt`;
+    f.addWatched([{ cwd: targetCwd, pinnedJsonl: "existing", pinnedAt: "2026-01-01T00:00:00Z" }]);
+
+    await expect(
+      fork({ cwd: targetCwd, srcJsonlPath, srcJsonlId: JSONL_ID, remoteControl: false })
+    ).rejects.toThrow(/already watched/);
+
+    expect(mockTmux.sessions.size).toBe(0);
+    // Pre-existing entry untouched
+    expect(loadState().entries).toHaveLength(1);
+    expect(loadState().entries[0].pinnedJsonl).toBe("existing");
+  });
+
+  test("fork refuses when target cwd has a live tmux session", async () => {
+    const srcJsonlPath = await prepareSource("/home/user/src");
+    const targetCwd = `${f.root}/home/user/tgt`;
+    const { cwdToTmuxName } = await import("../../src/core/slug");
+    mockTmux.newSession(cwdToTmuxName(targetCwd), targetCwd, "existing claude");
+
+    await expect(
+      fork({ cwd: targetCwd, srcJsonlPath, srcJsonlId: JSONL_ID, remoteControl: false })
+    ).rejects.toThrow(/active session in target cwd/);
+
+    // Pre-existing tmux untouched
+    expect(mockTmux.sessions.size).toBe(1);
+    expect(mockTmux.sessions.get(cwdToTmuxName(targetCwd))!.cmd).toBe("existing claude");
+    expect(loadState().entries).toHaveLength(0);
+  });
+
+  test("fork rejects invalid source jsonl ID", async () => {
+    const srcJsonlPath = await prepareSource("/home/user/src");
+    await expect(
+      fork({ cwd: `${f.root}/home/user/tgt`, srcJsonlPath, srcJsonlId: "not-a-uuid", remoteControl: false })
+    ).rejects.toThrow("invalid jsonl ID");
+  });
+
+  test("fork rejects missing source jsonl", async () => {
+    await expect(
+      fork({
+        cwd: `${f.root}/home/user/tgt`,
+        srcJsonlPath: `${f.root}/does-not-exist.jsonl`,
+        srcJsonlId: JSONL_ID,
+        remoteControl: false,
+      })
+    ).rejects.toThrow(/source jsonl does not exist/);
+  });
+
+  test("buildClaudeCmd with fork: true appends --fork-session", async () => {
+    const { buildClaudeCmd } = await import("../../src/core/actions");
+    const cmd = buildClaudeCmd(JSONL_ID, { fork: true });
+    expect(cmd).toContain(`--resume ${JSONL_ID}`);
+    expect(cmd).toContain("--fork-session");
   });
 });
