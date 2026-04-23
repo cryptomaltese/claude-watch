@@ -14,8 +14,13 @@ interface Props {
 }
 
 export function resolveCwd(p: string): string {
-  if (p.startsWith("~/")) return p.replace("~", process.env.HOME ?? "/root");
-  return p.startsWith("/") ? p : `${process.cwd()}/${p}`;
+  const expanded = p.startsWith("~/")
+    ? p.replace("~", process.env.HOME ?? "/root")
+    : p.startsWith("/") ? p : `${process.cwd()}/${p}`;
+  // Strip trailing slashes. Without this, a path like ".../trading/"
+  // produces empty basename in the picker name column AND is stored in
+  // watched.json differently from ".../trading", creating phantom rows.
+  return expanded.replace(/\/+$/, "") || "/";
 }
 
 export function CwdPrompt({

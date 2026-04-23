@@ -6,9 +6,18 @@ const KNOWN_DOT_PREFIXES = [
   "cargo", "rustup", "docker", "kube", "gnupg",
 ];
 
+/**
+ * Strip trailing slashes from a cwd. Callers that persist cwd (watched.json)
+ * or match against other cwds (picker grouping) must use the normalized
+ * form — otherwise "/foo/bar/" and "/foo/bar" become two distinct entries
+ * that refer to the same directory.
+ */
+export function normalizeCwd(cwd: string): string {
+  return cwd.replace(/\/+$/, "");
+}
+
 export function pathToSlug(cwd: string): string {
-  const normalized = cwd.replace(/\/+$/, "");
-  return normalized.replace(/^\//, "-").replace(/[/.]/g, "-");
+  return normalizeCwd(cwd).replace(/^\//, "-").replace(/[/.]/g, "-");
 }
 
 function normalize(p: string): string {

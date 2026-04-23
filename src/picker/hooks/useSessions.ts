@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { loadSessions, type Session } from "../../core/sessions.js";
 import { loadState } from "../../core/state.js";
 import { getTmuxDriver } from "../../core/tmux.js";
-import { cwdToTmuxNameCandidates } from "../../core/slug.js";
+import { cwdToTmuxNameCandidates, pathToSlug } from "../../core/slug.js";
 import { findTmuxForCwd } from "../../core/actions.js";
 import { loadConfig } from "../../core/config.js";
 import { basename } from "node:path";
@@ -15,10 +15,23 @@ export function useSessions() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const all = await loadSessions();
+    const allRaw = await loadSessions();
     const state = loadState();
     const driver = getTmuxDriver();
     const watchedCwds = new Set(state.entries.map((e) => e.cwd));
+
+    // slugToPath in core/sessions.ts can't reverse slugs where a path
+    // segment contains a literal "-" (e.g. "hummingbot-infra" collides
+    // with the "/"→"-" encoding). For watched cwds we can close the gap
+    // by building a slug→cwd map from state: if the session's slug
+    // matches a watched entry, use that entry's cwd.
+    const slugToWatchedCwd = new Map<string, string>();
+    for (const entry of state.entries) {
+      slugToWatchedCwd.set(pathToSlug(entry.cwd), entry.cwd);
+    }
+    const all = allRaw.map((s) =>
+      s.cwd === null ? { ...s, cwd: slugToWatchedCwd.get(s.slug) ?? null } : s
+    );
 
     // Group by cwd and pick the newest jsonl per cwd. Only that jsonl
     // represents the active conversation — older ones in the same cwd are

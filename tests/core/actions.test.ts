@@ -245,6 +245,26 @@ describe("actions", () => {
     ).rejects.toThrow(/source jsonl does not exist/);
   });
 
+  test("fork strips trailing slash from target cwd in watched state and tmux", async () => {
+    const srcJsonlPath = await prepareSource("/home/user/src");
+    const targetCwdRaw = `${f.root}/home/user/tgt/`;
+    const targetCwdClean = `${f.root}/home/user/tgt`;
+
+    await fork({ cwd: targetCwdRaw, srcJsonlPath, srcJsonlId: JSONL_ID, remoteControl: false });
+
+    const state = loadState();
+    expect(state.entries).toHaveLength(1);
+    // Stored cwd has no trailing slash — otherwise picker adds a phantom
+    // row because discovered jsonls resolve to the clean path and don't
+    // match the watched entry's dirty path.
+    expect(state.entries[0].cwd).toBe(targetCwdClean);
+
+    const { cwdToTmuxName } = await import("../../src/core/slug");
+    const sessions = Array.from(mockTmux.sessions.entries());
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0][0]).toBe(cwdToTmuxName(targetCwdClean));
+  });
+
   test("buildClaudeCmd with fork: true appends --fork-session", async () => {
     const { buildClaudeCmd } = await import("../../src/core/actions");
     const cmd = buildClaudeCmd(JSONL_ID, { fork: true });

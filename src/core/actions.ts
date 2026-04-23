@@ -5,7 +5,7 @@ import {
 import { join } from "node:path";
 import { loadState, saveState, upsertEntry, removeEntry, withStateLock } from "./state.js";
 import { getTmuxDriver, type TmuxDriver } from "./tmux.js";
-import { cwdToTmuxName, cwdToTmuxNameCandidates, pathToSlug } from "./slug.js";
+import { cwdToTmuxName, cwdToTmuxNameCandidates, pathToSlug, normalizeCwd } from "./slug.js";
 import { log } from "./log.js";
 import { loadConfig, getProjectsDir } from "./config.js";
 
@@ -120,7 +120,8 @@ async function activateRemoteControl(tmuxName: string): Promise<boolean> {
 }
 
 export async function activate(opts: ActivateOpts): Promise<void> {
-  const { cwd, jsonlId, attach = false, remoteControl } = opts;
+  const { jsonlId, attach = false, remoteControl } = opts;
+  const cwd = normalizeCwd(opts.cwd);
   validateJsonlId(jsonlId);
   validateCwd(cwd);
   if (!existsSync(cwd)) throw new Error(`directory does not exist: ${cwd}`);
@@ -150,7 +151,8 @@ export async function activate(opts: ActivateOpts): Promise<void> {
 }
 
 export async function deactivate(opts: DeactivateOpts): Promise<void> {
-  const { cwd, kill = true, attach = false } = opts;
+  const { kill = true, attach = false } = opts;
+  const cwd = normalizeCwd(opts.cwd);
   validateCwd(cwd);
 
   await withStateLock(() => {
@@ -170,7 +172,8 @@ export async function deactivate(opts: DeactivateOpts): Promise<void> {
 }
 
 export async function createNew(opts: CreateNewOpts): Promise<void> {
-  const { cwd, attach = false, remoteControl } = opts;
+  const { attach = false, remoteControl } = opts;
+  const cwd = normalizeCwd(opts.cwd);
   validateCwd(cwd);
   const config = loadConfig();
   const enableRC = remoteControl ?? config.remoteControl;
@@ -242,7 +245,8 @@ async function cleanupBreadcrumb(
  * of existing state would mask user error.
  */
 export async function fork(opts: ForkOpts): Promise<void> {
-  const { cwd, srcJsonlPath, srcJsonlId, attach = false, remoteControl } = opts;
+  const { srcJsonlPath, srcJsonlId, attach = false, remoteControl } = opts;
+  const cwd = normalizeCwd(opts.cwd);
   validateJsonlId(srcJsonlId);
   validateCwd(cwd);
   if (!existsSync(srcJsonlPath)) {
@@ -300,7 +304,8 @@ export async function fork(opts: ForkOpts): Promise<void> {
  * skill, or CLAUDE.md change, so the session picks up the new config.
  */
 export async function refresh(opts: RefreshOpts): Promise<void> {
-  const { cwd, jsonlId, attach = false, remoteControl } = opts;
+  const { jsonlId, attach = false, remoteControl } = opts;
+  const cwd = normalizeCwd(opts.cwd);
   validateJsonlId(jsonlId);
   validateCwd(cwd);
   if (!existsSync(cwd)) throw new Error(`directory does not exist: ${cwd}`);

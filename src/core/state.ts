@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, existsSync, renameSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { getConfigDir } from "./config.js";
+import { normalizeCwd } from "./slug.js";
 import lockfile from "proper-lockfile";
 
 export interface WatchedEntry {
@@ -30,7 +31,14 @@ export function loadState(): WatchedState {
     const raw = readFileSync(p, "utf-8");
     const parsed = JSON.parse(raw);
     if (parsed.version !== 1 || !Array.isArray(parsed.entries)) throw new Error("invalid schema");
-    return parsed as WatchedState;
+    // Auto-heal: normalize cwd on every entry so any pre-existing trailing
+    // slashes (e.g., saved by an older buggy fork) are silently corrected
+    // in memory. Next saveState flushes the cleaned version to disk.
+    const entries = (parsed.entries as WatchedEntry[]).map((e) => ({
+      ...e,
+      cwd: normalizeCwd(e.cwd),
+    }));
+    return { version: parsed.version, entries };
   } catch {
     const ts = new Date().toISOString().replace(/[:.]/g, "-");
     try { renameSync(p, `${p}.broken-${ts}`); } catch {}

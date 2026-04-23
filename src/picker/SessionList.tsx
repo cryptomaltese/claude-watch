@@ -1,5 +1,6 @@
 import React from "react";
 import { Box, Text, useInput, useStdout } from "ink";
+import { basename } from "node:path";
 import { theme } from "./theme.js";
 import type { Session } from "../core/sessions.js";
 
@@ -110,9 +111,12 @@ export function SessionList(props: Props): React.ReactElement {
             ? theme.fg
             : session.isWatched ? theme.fg : theme.dim;
           const detailColor = session.isAlive ? theme.fg : theme.dim;
-          const name = session.cwd
-            ? session.cwd.split("/").pop() ?? session.slug
-            : session.slug;
+          // Use basename() instead of split-pop — basename handles
+          // trailing slashes correctly (returns "bar" for "/foo/bar/"),
+          // while split-pop returns "" which then renders as empty
+          // because `??` doesn't fall back on empty strings.
+          const base = session.cwd ? basename(session.cwd) : "";
+          const name = base || session.slug;
 
           return (
             <Box key={session.jsonlId} flexDirection="column" marginBottom={1}>
