@@ -61,6 +61,12 @@ Highlight the session, hit enter, pick **refresh**. claude-watch kills the tmux 
 
 `ctrl-n` from the picker, or `claude-watch new <dir>`. Creates the directory if needed, spawns a fresh claude in a new tmux session, auto-activates `/remote-control`.
 
+### Fork a session
+
+You want to split an in-flight conversation into two parallel workstreams — same context so far, but now each track evolves independently. Pick the source session in the picker, open the action menu, choose **fork**. Enter the target directory (new or existing); claude-watch clones the transcript into a new watched session there. Source session stays untouched. Use **fork + attach** to drop into the pane of the new fork.
+
+Fork refuses if the target cwd is already watched, has a live claude running, or if the source has an active turn in flight (to avoid torn-read on the mid-write jsonl).
+
 ### Remote access
 
 Every spawn (new, activate, refresh) tries `/remote-control` up to three times with backoff. If it confirms, the session shows up in Desktop and mobile without extra steps. If it doesn't, claude-watch logs a warning and moves on — the session is still alive, you just activate RC manually.
