@@ -9,7 +9,7 @@
     "claude-watch": "./bin/claude-watch"
   },
   "scripts": {
-    "build": "bun build src/cli.ts --target=node --outfile=dist/cli.js --minify --banner=\"#!/usr/bin/env node\" --define __CW_BUILD__=\"'$(date -u +%Y%m%dT%H%M%SZ)-$(git rev-parse --short HEAD 2>/dev/null || echo dev)'\"",
+    "build": "bun build src/cli.ts --target=node --outfile=dist/cli.js --minify --banner=\"#!/usr/bin/env node\" --define __CW_BUILD__=\"'$(TZ=UTC git log -1 --format=%cd --date=format:%Y%m%dT%H%M%SZ HEAD 2>/dev/null || date -u +%Y%m%dT%H%M%SZ)-$(git rev-parse --short HEAD 2>/dev/null || echo dev)'\"",
     "dev": "bun run src/cli.ts",
     "test": "bun test",
     "lint": "tsc --noEmit",
