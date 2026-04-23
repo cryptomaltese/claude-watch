@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo } from "react";
 import { Box, Text, useInput, useApp } from "ink";
 import { SessionList } from "./SessionList.js";
 import { ActionMenu } from "./ActionMenu.js";
@@ -86,22 +86,13 @@ export function App(): React.ReactElement {
     reload();
   }
 
-  // Force a full repaint on every screen transition via Ink's clear().
-  // Ink's own API clears the terminal AND resets its internal frame-diff
-  // state — critical: raw ANSI clears wipe pixels but leave Ink thinking
-  // it drew N rows, so the next re-render (e.g., arrow-nav within the
-  // new screen) ends up writing below the real cursor, producing a
-  // ghost panel. The clear is exposed on globalThis by pick.ts so the
-  // App can reach it without threading refs through the whole tree.
-  const lastScreenRef = useRef<Screen | null>(null);
-  useEffect(() => {
-    if (lastScreenRef.current !== null && lastScreenRef.current !== screen) {
-      const inkClear = (globalThis as { __claudeWatchInkClear?: () => void }).__claudeWatchInkClear;
-      inkClear?.();
-    }
-    lastScreenRef.current = screen;
-  }, [screen]);
-
+  // Keyed screens: wrapping each screen's root with a key tied to the
+  // screen name forces React to unmount the old subtree and mount a
+  // fresh one on transitions. This avoids height-mismatch diff surprises
+  // that Ink 5 used to hit when branches of a conditional shared
+  // structure. Ink 7's synchronized-output + incremental rendering
+  // handles the actual terminal side; React just needs to do a clean
+  // mount/unmount.
   if (loading) {
     return <Box paddingX={1}><Text>loading sessions…</Text></Box>;
   }
@@ -109,6 +100,7 @@ export function App(): React.ReactElement {
   if (screen === "action" && selectedSession) {
     return (
       <ActionMenu
+        key={`action-${selectedSession.jsonlId}`}
         session={selectedSession}
         onBack={handleBack}
         onFork={(s) => { setSelectedSession(s); setScreen("fork"); }}
@@ -117,15 +109,22 @@ export function App(): React.ReactElement {
   }
 
   if (screen === "new") {
-    return <NewSessionInput onBack={handleBack} />;
+    return <NewSessionInput key="new" onBack={handleBack} />;
   }
 
   if (screen === "fork" && selectedSession) {
-    return <ForkSessionInput session={selectedSession} onBack={handleBack} />;
+    return (
+      <ForkSessionInput
+        key={`fork-${selectedSession.jsonlId}`}
+        session={selectedSession}
+        onBack={handleBack}
+      />
+    );
   }
 
   return (
     <SessionList
+      key="list"
       sessions={paged} query={query} searching={searching}
       searchFocused={searchFocused}
       selectedIndex={selectedIndex} onSelect={handleSelect}

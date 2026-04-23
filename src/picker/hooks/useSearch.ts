@@ -5,7 +5,7 @@ import { getProjectsDir } from "../../core/config.js";
 export function useSearch(query: string, allSessionIds: Set<string>) {
   const [matchingIds, setMatchingIds] = useState<Set<string> | null>(null);
   const [searching, setSearching] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     if (!query.trim()) {
