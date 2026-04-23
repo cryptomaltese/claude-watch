@@ -3,11 +3,12 @@ import { Box, Text, useInput, useApp } from "ink";
 import { SessionList } from "./SessionList.js";
 import { ActionMenu } from "./ActionMenu.js";
 import { NewSessionInput } from "./NewSessionInput.js";
+import { ForkSessionInput } from "./ForkSessionInput.js";
 import { useSessions } from "./hooks/useSessions.js";
 import { useSearch } from "./hooks/useSearch.js";
 import type { Session } from "../core/sessions.js";
 
-type Screen = "list" | "action" | "new";
+type Screen = "list" | "action" | "new" | "fork";
 
 export function App(): React.ReactElement {
   const [screen, setScreen] = useState<Screen>("list");
@@ -106,11 +107,21 @@ export function App(): React.ReactElement {
   }
 
   if (screen === "action" && selectedSession) {
-    return <ActionMenu session={selectedSession} onBack={handleBack} />;
+    return (
+      <ActionMenu
+        session={selectedSession}
+        onBack={handleBack}
+        onFork={(s) => { setSelectedSession(s); setScreen("fork"); }}
+      />
+    );
   }
 
   if (screen === "new") {
     return <NewSessionInput onBack={handleBack} />;
+  }
+
+  if (screen === "fork" && selectedSession) {
+    return <ForkSessionInput session={selectedSession} onBack={handleBack} />;
   }
 
   return (

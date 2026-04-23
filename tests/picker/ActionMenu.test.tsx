@@ -26,13 +26,28 @@ describe("ActionMenu", () => {
   afterEach(() => { f.restoreEnv(); f.cleanup(); });
 
   test("shows activate for unwatched session", () => {
-    const { lastFrame } = render(<ActionMenu session={makeSession({ isWatched: false })} onBack={() => {}} />);
+    const { lastFrame } = render(<ActionMenu session={makeSession({ isWatched: false })} onBack={() => {}} onFork={() => {}} />);
     expect(lastFrame()).toContain("activate");
     expect(lastFrame()).not.toContain("deactivate");
   });
 
   test("shows deactivate for watched session", () => {
-    const { lastFrame } = render(<ActionMenu session={makeSession({ isWatched: true })} onBack={() => {}} />);
+    const { lastFrame } = render(<ActionMenu session={makeSession({ isWatched: true })} onBack={() => {}} onFork={() => {}} />);
     expect(lastFrame()).toContain("deactivate");
+  });
+
+  test("shows fork + fork + attach when session has jsonlId", () => {
+    const { lastFrame } = render(
+      <ActionMenu session={makeSession({ jsonlId: "abc-123" })} onBack={() => {}} onFork={() => {}} />
+    );
+    expect(lastFrame()).toContain("fork");
+    expect(lastFrame()).toContain("fork + attach");
+  });
+
+  test("hides fork actions when jsonlId is empty", () => {
+    const { lastFrame } = render(
+      <ActionMenu session={makeSession({ jsonlId: "" })} onBack={() => {}} onFork={() => {}} />
+    );
+    expect(lastFrame()).not.toContain("fork");
   });
 });

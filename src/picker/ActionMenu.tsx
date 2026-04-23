@@ -9,9 +9,10 @@ import { basename } from "node:path";
 interface Props {
   session: Session;
   onBack: () => void;
+  onFork: (session: Session, opts: { attach: boolean }) => void;
 }
 
-type ActionKind = "primary" | "refresh";
+type ActionKind = "primary" | "refresh" | "fork";
 
 interface MenuAction {
   label: string;
@@ -19,7 +20,7 @@ interface MenuAction {
   kind: ActionKind;
 }
 
-export function ActionMenu({ session, onBack }: Props): React.ReactElement {
+export function ActionMenu({ session, onBack, onFork }: Props): React.ReactElement {
   const [status, setStatus] = useState<"idle" | "working" | "done">("idle");
   const [resultMsg, setResultMsg] = useState("");
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -29,6 +30,7 @@ export function ActionMenu({ session, onBack }: Props): React.ReactElement {
   const stateLabel = session.isWatched ? "ON" : "OFF";
   const primaryLabel = session.isWatched ? "deactivate" : "activate";
   const canRefresh = Boolean(session.isAlive && session.jsonlId);
+  const canFork = Boolean(session.jsonlId);
 
   const actions: MenuAction[] = [
     { label: primaryLabel, attach: false, kind: "primary" },
@@ -39,10 +41,22 @@ export function ActionMenu({ session, onBack }: Props): React.ReactElement {
           { label: "refresh + attach", attach: true, kind: "refresh" as const },
         ]
       : []),
+    ...(canFork
+      ? [
+          { label: "fork", attach: false, kind: "fork" as const },
+          { label: "fork + attach", attach: true, kind: "fork" as const },
+        ]
+      : []),
   ];
 
   async function runAction(action: MenuAction): Promise<void> {
     if (!session.cwd) return;
+    if (action.kind === "fork") {
+      // Fork has its own subflow screen — let the parent route there.
+      // The fork screen owns the working/done UI.
+      onFork(session, { attach: action.attach });
+      return;
+    }
     setStatus("working");
     try {
       if (action.kind === "refresh") {
