@@ -8,13 +8,17 @@ interface Props {
   jsonlPath: string;
 }
 
-// ActionMenu chrome around the peek panel: outer border (2), padding-y
-// (2), name line (1), margin-top before peek (1), margin-top before
-// actions (1), actions header (1), up to 4 action rows, margin-top
-// before hint (1), hint (1). Sum: ~14 rows of non-peek content at most.
-// The peek panel itself adds its own header (2 rows: title + separator).
-// Each peek event renders as 1 content row + 1 marginBottom = 2 rows.
-const CHROME_ROWS = 14;
+// ActionMenu chrome around the peek panel:
+//   border (2) + paddingY (2) + name line (1) + marginTop-before-peek (1)
+//   + marginTop-before-actions (1) + actions header (1)
+//   + up to 6 action rows (deactivate±attach, refresh±attach, fork±attach)
+//   + marginTop-before-hint (1) + hint (1)
+//   = 16 rows of non-peek content at most; add a 2-row safety margin.
+// The peek panel adds its own header (title + separator = 2 rows).
+// Each peek event renders as 1 content row + 1 marginBottom = 2 rows —
+// this only holds when sessions.ts's truncate() collapses all whitespace
+// and Text uses wrap="truncate"; both changes went in together.
+const CHROME_ROWS = 18;
 const PEEK_HEADER_ROWS = 2;
 const ROWS_PER_PEEK_EVENT = 2;
 
@@ -63,7 +67,7 @@ export function PeekPanel({ jsonlPath }: Props): React.ReactElement | null {
       ) : (
         displayed.map((line, i) => (
           <Box key={i} marginBottom={1}>
-            <Text color={theme.dim} wrap="wrap">{line}</Text>
+            <Text color={theme.dim} wrap="truncate">{line}</Text>
           </Box>
         ))
       )}

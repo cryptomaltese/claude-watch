@@ -152,12 +152,11 @@ function breakdownContent(content: unknown): ContentBreakdown {
 }
 
 function truncate(s: string, max = 400): string {
-  // Collapse runs of spaces/tabs but preserve newlines.
-  // Also collapse 3+ consecutive newlines to 2 (one blank line).
-  const cleaned = s
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  // Collapse ALL whitespace (including newlines) to single spaces so
+  // each rendered event is one logical line. PeekPanel pairs this with
+  // Text wrap="truncate" to cap at terminal width — gives a predictable
+  // per-event row count, which the ActionMenu's height math depends on.
+  const cleaned = s.replace(/\s+/g, " ").trim();
   return cleaned.length > max ? cleaned.slice(0, max) + "…" : cleaned;
 }
 
