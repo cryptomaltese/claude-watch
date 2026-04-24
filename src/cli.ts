@@ -91,6 +91,16 @@ async function main(): Promise<void> {
       await runAttach(args);
       break;
     }
+    case "refresh": {
+      const { runRefresh } = await import("./commands/refresh.js");
+      await runRefresh(args);
+      break;
+    }
+    case "fork": {
+      const { runFork } = await import("./commands/fork.js");
+      await runFork(args);
+      break;
+    }
     case "logs": {
       const { runLogs } = await import("./commands/logs.js");
       runLogs(args);
