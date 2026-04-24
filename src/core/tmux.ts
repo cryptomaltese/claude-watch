@@ -11,6 +11,8 @@ export interface TmuxDriver {
   listSessionCwds(): Set<string>;
   /** Map of session name → pane_current_path. */
   getNameCwdMap(): Map<string, string>;
+  /** Switch the current tmux client to the named session (no-op outside tmux). */
+  switchClient(name: string): void;
 }
 
 export class RealTmuxDriver implements TmuxDriver {
@@ -53,6 +55,9 @@ export class RealTmuxDriver implements TmuxDriver {
       return map;
     } catch { return new Map(); }
   }
+  switchClient(name: string): void {
+    execFileSync("tmux", ["switch-client", "-t", name], { stdio: "ignore" });
+  }
 }
 
 interface MockSession {
@@ -64,6 +69,7 @@ interface MockSession {
 
 export class MockTmuxDriver implements TmuxDriver {
   sessions = new Map<string, MockSession>();
+  switchedTo: string | null = null;
   hasSession(name: string): boolean { return this.sessions.has(name); }
   newSession(name: string, cwd: string, cmd: string): void {
     this.sessions.set(name, { cwd, cmd, keys: [], paneContent: "" });
@@ -83,6 +89,7 @@ export class MockTmuxDriver implements TmuxDriver {
     for (const [name, s] of this.sessions) map.set(name, s.cwd);
     return map;
   }
+  switchClient(name: string): void { this.switchedTo = name; }
 }
 
 let _driver: TmuxDriver | null = null;
