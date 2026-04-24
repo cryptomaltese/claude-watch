@@ -61,6 +61,14 @@ Highlight the session, hit enter, pick **refresh**. claude-watch kills the tmux 
 
 `ctrl-n` from the picker, or `claude-watch new <dir>`. Creates the directory if needed, spawns a fresh claude in a new tmux session, auto-activates `/remote-control`.
 
+### Inside Claude Code — `/watched`
+
+If you're already in a Claude Code conversation, type `/watched` to pick a session, run an action on it, and optionally switch focus to its tmux pane — without leaving the current Claude. Use `/watched -s <query>` to pre-filter by cwd name, session name, or last-event content.
+
+The command flows like this: Claude prints a numbered session list, you pick by number, then pick an action via an inline multi-choice prompt (activate / deactivate / refresh / fork / attach — what's offered depends on the session's state), then decide whether to stay in the current Claude or switch tmux focus to the selected session's pane.
+
+`/watched` is a thin adapter over the same CLI the picker uses — actions taken there are identical to the same actions from `claude-watch pick`.
+
 ### Fork a session
 
 You want to split an in-flight conversation into two parallel workstreams — same context so far, but now each track evolves independently. Pick the source session in the picker, open the action menu, choose **fork**. Enter the target directory (new or existing); claude-watch clones the transcript into a new watched session there. Source session stays untouched. Use **fork + attach** to drop into the pane of the new fork.
