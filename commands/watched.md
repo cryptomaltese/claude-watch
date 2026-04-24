@@ -5,105 +5,83 @@ argument-hint: "[-s <query>]"
 allowed-tools: [Bash, AskUserQuestion]
 ---
 
-The user wants to pick, act on, or switch focus to one of their claude-watch sessions — without leaving the current Claude Code conversation.
+The user wants to pick, act on, or switch focus to one of their claude-watch sessions.
 
 Arguments: $ARGUMENTS
 
-## Flow
+## Step 1 — show the list
 
-### 1. Fetch the session list
-
-Run the following via Bash:
+Run exactly this via Bash (no `jq`, no piping, no transformation — the CLI already emits ready-to-display text):
 
 ```
-claude-watch status --json $ARGUMENTS
+claude-watch status --list $ARGUMENTS
 ```
 
-Parse the JSON. The shape is:
+Print the output **verbatim**. Do not reformat it. Do not re-render it. The user wants what the CLI prints.
 
-```
-{ sessions: [{ cwd, jsonlId, name, slug, isWatched, isAlive, brandNew, mtime, lastEvent }, ...],
-  page: { current, total },
-  totalCount: <n> }
-```
+## Step 2 — wait for a number
 
-### 2. Print a numbered list
+The user's reply will be:
+- a number N → the N-th session in the list just shown
+- the word `more` → call `claude-watch status --list --page <N+1> $ARGUMENTS` and repeat step 1
+- natural language like "the trading one" → match on name; if ambiguous, ask which one via AskUserQuestion
 
-For each session on the current page, emit one formatted row (2 lines):
+Each list row's first line has this shape:
+`<N>. [<state>] <name>[ (this session)][ · jsonl:<prefix>]`
 
-```
-<N>. <name>  <state tags>
-    <age> · <cwd>
-    "<lastEvent, truncated to ~80 chars>"
-```
+Parse `<state>` to derive the session's action matrix for step 3. `<N>` is the number the user will type.
 
-Where `<state tags>` is:
-- `live watched` — isAlive && isWatched
-- `watched · dead` — isWatched && !isAlive
-- `live` — isAlive && !isWatched
-- (no tag) — neither
-- Add `new` if `brandNew` is true (watched, no jsonl yet)
+## Step 3 — pick the action (AskUserQuestion)
 
-Then tell the user: `type a number, or "more" for the next page` if `page.total > 1`. Otherwise just `type a number`.
+Based on the selected session's `<state>`, offer exactly these options:
 
-### 3. Wait for the user's selection
-
-The user will reply with a number, or the word "more", or natural-language like "the trading one". Resolve accordingly:
-- Number → the n-th session on the current page (1-indexed).
-- "more" → call `claude-watch status --json --page <current+1> $ARGUMENTS` and repeat step 2.
-- Name-match → best-effort substring match on name or lastEvent, fall back to asking "did you mean: A / B / C?" via AskUserQuestion if ambiguous.
-
-### 4. Ask which action to take (via AskUserQuestion)
-
-Options depend on the selected session's state. Offer exactly:
-
-| State | Options |
+| state | options |
 |---|---|
-| Unwatched + alive | activate, fork, attach |
-| Unwatched + dead | activate, fork |
-| Watched + alive w/ jsonl | deactivate, refresh, fork, attach |
-| Watched + dead w/ jsonl | deactivate, refresh, fork, attach |
-| Watched + brand-new alive | deactivate, refresh, attach |
-| Watched + brand-new dead | deactivate, refresh, attach |
+| unwatched alive | activate, fork, attach |
+| unwatched dead | activate, fork |
+| watched alive | deactivate, refresh, fork, attach |
+| watched dead | deactivate, refresh, fork, attach |
+| new alive | deactivate, refresh, attach |
+| new dead | deactivate, refresh, attach |
 
-"attach" is safe on watched+dead: the `claude-watch attach` subcommand auto-resuscitates before switching.
+`attach` is always safe — the CLI auto-resuscitates dead watched sessions before switching.
 
-### 5. Collect extra input
+## Step 4 — collect extras
 
-- If action == `fork`: ask the user conversationally for the target cwd (absolute path, or relative to CWD). Accept free-text.
+- `fork` → ask the user conversationally for the target cwd (absolute or relative path).
 
-### 6. Ask the attach disposition (only for non-attach actions)
+## Step 5 — pick the disposition (AskUserQuestion, non-attach actions only)
 
-If action is not `attach`, use AskUserQuestion:
-- "stay here" — run the action, report result, stay in this Claude
-- "continue in selected" — run the action, then `tmux switch-client` to the selected session's pane
+- `stay here` → run the action, report the result, stay in this Claude.
+- `continue in selected` → run the action, then `tmux switch-client -t <tmux-name>` to the selected session's pane.
 
-### 7. Execute
+## Step 6 — execute
 
-Via Bash, call the matching subcommand:
+Via Bash, one call:
 
-- `attach`: `claude-watch attach <cwd>`
-- `activate`: `claude-watch activate <cwd> [--jsonl <id>]` (`--jsonl` optional, defaults to newest jsonl at that cwd)
-- `deactivate`: `claude-watch deactivate <cwd>`
-- `refresh`: `claude-watch refresh <cwd>` (works for brand-new sessions too — spawns without `--resume` when pinnedJsonl is null)
-- `fork`: `claude-watch fork <src-cwd> <target-cwd>` (resolves the source jsonl automatically from watched.json / newest-on-disk)
+- `attach` → `claude-watch attach <cwd>`
+- `activate` → `claude-watch activate <cwd>`
+- `deactivate` → `claude-watch deactivate <cwd>`
+- `refresh` → `claude-watch refresh <cwd>`
+- `fork` → `claude-watch fork <src-cwd> <target-cwd>`
 
-If the disposition was `continue in selected`, after the action succeeds also run:
+Each of these prints the tmux name on success (`as claude-<slug>`). Parse it if you need to follow up with a switch-client.
+
+For the `continue in selected` disposition, run the action above and then:
 
 ```
 tmux switch-client -t <tmux-name>
 ```
 
-Where `<tmux-name>` is `claude-<slug>` (derived from the target cwd — the CLI logs this name on success, parse it from the output).
+## Step 7 — one-line result
 
-### 8. Report the outcome
-
-One terse sentence. Examples:
-- `✓ refreshed trading session`
+Examples:
+- `✓ refreshed trading`
 - `✓ forked trading → hummingbot-infra, switching focus`
 - `✓ attached to nautilus pane`
 
-## Notes
+## Principles
 
-- This command is a thin adapter over the `claude-watch` CLI. All actions are identical to the same actions run from the interactive `claude-watch pick` picker — same state files, same tmux sessions, same jsonls.
-- If `tmux switch-client` fails (e.g., current process isn't inside tmux), fall back to printing `tmux attach -t <name>` and let the user run it.
+- One Bash call per step. No jq, no pipes, no reformatting. The CLI does the work.
+- Never print the raw JSON envelope. `--list` is what the user sees.
+- If the user picks a dead unwatched session and the action menu doesn't match what they asked for, explain the state and tell them to activate first.
