@@ -1,9 +1,16 @@
 {
-  "hooks": [
-    {
-      "event": "SessionStart",
-      "command": "node dist/cli.js _hook session-start",
-      "async": true
-    }
-  ]
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/cli.js\" _hook session-start",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
 }

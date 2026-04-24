@@ -2,7 +2,9 @@
   "name": "claude-watch",
   "version": "0.2.0",
   "description": "Persistent, auto-resuscitating Claude Code sessions with interactive picker",
-  "author": "openclaw",
+  "author": {
+    "name": "openclaw"
+  },
   "homepage": "https://github.com/cryptomaltese/claude-watch",
   "keywords": ["session", "tmux", "watchdog", "persistent", "resume"]
 }
