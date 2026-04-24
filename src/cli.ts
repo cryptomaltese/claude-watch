@@ -68,7 +68,7 @@ async function main(): Promise<void> {
     }
     case "status": {
       const { runStatus } = await import("./commands/status.js");
-      runStatus();
+      await runStatus(args);
       break;
     }
     case "activate": {

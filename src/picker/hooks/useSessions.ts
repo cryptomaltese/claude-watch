@@ -1,95 +1,22 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { loadSessions, type Session } from "../../core/sessions.js";
-import { loadState } from "../../core/state.js";
-import { getTmuxDriver } from "../../core/tmux.js";
-import { cwdToTmuxNameCandidates, pathToSlug } from "../../core/slug.js";
-import { findTmuxForCwd } from "../../core/actions.js";
+import { loadEnrichedSessions, type EnrichedSession } from "../../core/sessions.js";
 import { loadConfig } from "../../core/config.js";
-import { basename } from "node:path";
 
 export function useSessions() {
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessions, setSessions] = useState<EnrichedSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const config = useMemo(() => loadConfig(), []);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const allRaw = await loadSessions();
-    const state = loadState();
-    const driver = getTmuxDriver();
-    const watchedCwds = new Set(state.entries.map((e) => e.cwd));
-
-    // slugToPath in core/sessions.ts can't reverse slugs where a path
-    // segment contains a literal "-" (e.g. "hummingbot-infra" collides
-    // with the "/"→"-" encoding). For watched cwds we can close the gap
-    // by building a slug→cwd map from state: if the session's slug
-    // matches a watched entry, use that entry's cwd.
-    const slugToWatchedCwd = new Map<string, string>();
-    for (const entry of state.entries) {
-      slugToWatchedCwd.set(pathToSlug(entry.cwd), entry.cwd);
-    }
-    const all = allRaw.map((s) =>
-      s.cwd === null ? { ...s, cwd: slugToWatchedCwd.get(s.slug) ?? null } : s
+    const enriched = await loadEnrichedSessions();
+    // Picker UX: brand-new rows get the "no conversation yet" hint for
+    // the lastEvent column. The CLI consumers just see lastEvent: "".
+    const withPickerLabels = enriched.map((s) =>
+      s.brandNew ? { ...s, lastEvent: "(new session — no conversation yet)" } : s
     );
-
-    // Group by cwd and pick the newest jsonl per cwd. Only that jsonl
-    // represents the active conversation — older ones in the same cwd are
-    // archived forks/resumes, not currently running even if the tmux session
-    // is alive.
-    const newestPerCwd = new Map<string, string>();
-    for (const s of all) {
-      if (s.cwd === null) continue;
-      const existing = newestPerCwd.get(s.cwd);
-      if (!existing) {
-        newestPerCwd.set(s.cwd, s.jsonlId);
-      }
-      // `all` is already sorted mtime desc, so the first one seen is newest
-    }
-
-    // Tmux sessions may have names we can't derive from cwd (e.g. user
-    // started them manually with a custom name). Also collect the set of
-    // cwds tmux reports via pane_current_path and match by that.
-    const tmuxCwds = driver.listSessionCwds();
-
-    const enriched = all.map((s) => {
-      const isNewestInCwd = s.cwd !== null && newestPerCwd.get(s.cwd) === s.jsonlId;
-      const tmuxAlive = s.cwd !== null && (
-        cwdToTmuxNameCandidates(s.cwd).some((name) => driver.hasSession(name)) ||
-        tmuxCwds.has(s.cwd)
-      );
-      // "watched" means this specific entry represents the pinned jsonl for a
-      // watched cwd — only the newest-per-cwd does. Older forks share the cwd
-      // but aren't what's actually being tracked, so showing them as watched
-      // misleads the user about what deactivate would affect.
-      const isWatched =
-        s.cwd !== null && watchedCwds.has(s.cwd) && isNewestInCwd;
-      return {
-        ...s,
-        isWatched,
-        isAlive: isNewestInCwd && tmuxAlive,
-      };
-    });
-
-    // Add synthetic entries for watched cwds that have no jsonl yet
-    // (brand-new sessions created via ctrl-n before any conversation)
-    const cwdsInList = new Set(all.map((s) => s.cwd).filter(Boolean));
-    for (const entry of state.entries) {
-      if (cwdsInList.has(entry.cwd)) continue;
-      const tmuxName = findTmuxForCwd(driver, entry.cwd);
-      enriched.unshift({
-        jsonlPath: "",
-        jsonlId: "",
-        slug: "",
-        cwd: entry.cwd,
-        mtime: new Date(entry.pinnedAt),
-        lastEvent: "(new session — no conversation yet)",
-        isWatched: true,
-        isAlive: tmuxName !== null,
-      });
-    }
-
-    setSessions(enriched);
+    setSessions(withPickerLabels);
     setLoading(false);
   }, []);
 

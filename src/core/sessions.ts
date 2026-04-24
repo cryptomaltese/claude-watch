@@ -4,7 +4,10 @@ import {
 } from "node:fs";
 import { join, basename } from "node:path";
 import { getProjectsDir } from "./config.js";
-import { slugToPath } from "./slug.js";
+import { slugToPath, pathToSlug, cwdToTmuxNameCandidates } from "./slug.js";
+import { loadState } from "./state.js";
+import { getTmuxDriver } from "./tmux.js";
+import { findTmuxForCwd } from "./actions.js";
 
 export interface Session {
   jsonlPath: string;
@@ -15,6 +18,11 @@ export interface Session {
   lastEvent: string;
   isWatched: boolean;
   isAlive: boolean;
+}
+
+export interface EnrichedSession extends Session {
+  /** True for synthetic placeholder entries — watched cwds without a jsonl yet. */
+  brandNew: boolean;
 }
 
 /**
@@ -84,6 +92,77 @@ export async function loadSessions(): Promise<Session[]> {
 
   sessions.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
   return sessions;
+}
+
+/**
+ * Load sessions with isWatched / isAlive computed + synthetic placeholder
+ * rows for watched cwds that don't yet have a jsonl on disk. The CLI
+ * `status --json` command and the Ink picker both consume this — single
+ * source of truth for "what's the current session landscape."
+ */
+export async function loadEnrichedSessions(): Promise<EnrichedSession[]> {
+  const allRaw = await loadSessions();
+  const state = loadState();
+  const driver = getTmuxDriver();
+  const watchedCwds = new Set(state.entries.map((e) => e.cwd));
+
+  // Close the slugToPath gap for hyphenated directory names: when a slug
+  // can't be reversed (e.g. "-hummingbot-infra" — ambiguous with
+  // "/hummingbot/infra"), cross-reference watched.json to resolve it.
+  // Only helps for watched sessions; unwatched hyphenated paths stay null.
+  const slugToWatchedCwd = new Map<string, string>();
+  for (const entry of state.entries) {
+    slugToWatchedCwd.set(pathToSlug(entry.cwd), entry.cwd);
+  }
+  const all = allRaw.map((s) =>
+    s.cwd === null ? { ...s, cwd: slugToWatchedCwd.get(s.slug) ?? null } : s
+  );
+
+  // Newest-per-cwd: only the latest jsonl per cwd is the "active" conversation.
+  // Older siblings (forks/resumes) exist on disk but aren't what watched.json
+  // pins to or what tmux is running.
+  const newestPerCwd = new Map<string, string>();
+  for (const s of all) {
+    if (s.cwd === null) continue;
+    if (!newestPerCwd.has(s.cwd)) newestPerCwd.set(s.cwd, s.jsonlId);
+  }
+
+  const tmuxCwds = driver.listSessionCwds();
+
+  const enriched: EnrichedSession[] = all.map((s) => {
+    const isNewestInCwd = s.cwd !== null && newestPerCwd.get(s.cwd) === s.jsonlId;
+    const tmuxAlive = s.cwd !== null && (
+      cwdToTmuxNameCandidates(s.cwd).some((name) => driver.hasSession(name)) ||
+      tmuxCwds.has(s.cwd)
+    );
+    return {
+      ...s,
+      isWatched: s.cwd !== null && watchedCwds.has(s.cwd) && isNewestInCwd,
+      isAlive: isNewestInCwd && tmuxAlive,
+      brandNew: false,
+    };
+  });
+
+  // Synthetic placeholders for watched cwds with no jsonl on disk yet
+  // (sessions created via ctrl-n before the first user message).
+  const cwdsInList = new Set(all.map((s) => s.cwd).filter(Boolean));
+  for (const entry of state.entries) {
+    if (cwdsInList.has(entry.cwd)) continue;
+    const tmuxName = findTmuxForCwd(driver, entry.cwd);
+    enriched.unshift({
+      jsonlPath: "",
+      jsonlId: "",
+      slug: "",
+      cwd: entry.cwd,
+      mtime: new Date(entry.pinnedAt),
+      lastEvent: "",
+      isWatched: true,
+      isAlive: tmuxName !== null,
+      brandNew: true,
+    });
+  }
+
+  return enriched;
 }
 
 function extractLastEvent(jsonlPath: string): string {
