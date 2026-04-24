@@ -19,11 +19,12 @@ claude-watch status --list $ARGUMENTS
 
 Print the output **verbatim**. Do not reformat it. Do not re-render it. The user wants what the CLI prints.
 
-## Step 2 — wait for a number
+## Step 2 — wait for the user's reply
 
-The user's reply will be:
-- a number N → the N-th session in the list just shown
-- the word `more` → call `claude-watch status --list --page <N+1> $ARGUMENTS` and repeat step 1
+Reply handling:
+- a number N → the N-th session in the list
+- `n` / `next` / `more` → call `claude-watch status --list --page <current+1> $ARGUMENTS` and repeat step 1
+- `p` / `prev` / `back` → call `claude-watch status --list --page <current-1> $ARGUMENTS` and repeat step 1
 - natural language like "the trading one" → match on name; if ambiguous, ask which one via AskUserQuestion
 
 Each list row's first line has this shape:

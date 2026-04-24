@@ -120,10 +120,11 @@ export async function runStatus(args: string[]): Promise<void> {
       console.log();
     });
 
-    if (totalPages > current) {
-      console.log(`Type a number, or "more" for the next page.`);
-    } else if (totalPages > 1) {
-      console.log("Type a number.");
+    if (totalPages > 1) {
+      const hints: string[] = ["number"];
+      if (current < totalPages) hints.push('"n" next');
+      if (current > 1) hints.push('"p" prev');
+      console.log(`Type: ${hints.join(" · ")}`);
     } else if (sessions.length > 0) {
       console.log("Type a number.");
     }
