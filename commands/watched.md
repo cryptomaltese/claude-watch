@@ -17,7 +17,9 @@ Run exactly this via Bash (no `jq`, no piping, no transformation — the CLI alr
 claude-watch status --list $ARGUMENTS
 ```
 
-Print the output **verbatim**. Do not reformat it. Do not re-render it. The user wants what the CLI prints.
+Then **in your reply message to the user, echo the full stdout of that command verbatim** — every line, unchanged. Do not reformat, do not re-render, do not summarize.
+
+**This is important:** Claude Code auto-collapses long Bash tool outputs to a few preview lines with a "ctrl+o to expand" hint. If you don't echo the list in your own message, the user only sees 1-2 sessions. Always include the full list in your reply.
 
 ## Step 2 — wait for the user's reply
 
