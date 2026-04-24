@@ -148,6 +148,23 @@ describe("actions", () => {
     expect(state.entries).toHaveLength(0);
   });
 
+  test("refresh with null jsonlId spawns fresh (no --resume) for brand-new sessions", async () => {
+    const cwd = `${f.root}/home/user/fresh`;
+    const { mkdirSync } = await import("node:fs");
+    mkdirSync(cwd, { recursive: true });
+    f.addWatched([{ cwd, pinnedJsonl: null, pinnedAt: "2026-01-01T00:00:00Z" }]);
+    // No existing tmux, no jsonl — brand-new watched, currently dead.
+
+    await refresh({ cwd, jsonlId: null, remoteControl: false });
+
+    const { cwdToTmuxName } = await import("../../src/core/slug");
+    const tmuxName = cwdToTmuxName(cwd);
+    expect(mockTmux.hasSession(tmuxName)).toBe(true);
+    expect(mockTmux.sessions.get(tmuxName)!.cmd).not.toContain("--resume");
+    // Watched state untouched (refresh never writes state by design).
+    expect(loadState().entries).toHaveLength(1);
+  });
+
   // ─── fork ──────────────────────────────────────────────────────────
 
   async function prepareSource(srcCwd: string): Promise<string> {

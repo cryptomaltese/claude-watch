@@ -46,7 +46,13 @@ interface CreateNewOpts {
 
 interface RefreshOpts {
   cwd: string;
-  jsonlId: string;
+  /**
+   * null = refresh a brand-new watched session that has no jsonl yet.
+   * The respawned claude starts fresh (no `--resume`), which is what the
+   * user wants after e.g. installing a new MCP on a session that hasn't
+   * had its first turn yet.
+   */
+  jsonlId: string | null;
   attach?: boolean;
   remoteControl?: boolean;
 }
@@ -306,7 +312,7 @@ export async function fork(opts: ForkOpts): Promise<void> {
 export async function refresh(opts: RefreshOpts): Promise<void> {
   const { jsonlId, attach = false, remoteControl } = opts;
   const cwd = normalizeCwd(opts.cwd);
-  validateJsonlId(jsonlId);
+  if (jsonlId !== null) validateJsonlId(jsonlId);
   validateCwd(cwd);
   if (!existsSync(cwd)) throw new Error(`directory does not exist: ${cwd}`);
 
