@@ -58,7 +58,7 @@ async function main(): Promise<void> {
     case "pick":
     case undefined: {
       const { runPick } = await import("./commands/pick.js");
-      await runPick();
+      await runPick(args);
       break;
     }
     case "scan": {

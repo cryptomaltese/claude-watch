@@ -4,16 +4,12 @@ description: Open the claude-watch picker in a tmux split pane
 allowed-tools: [Bash]
 ---
 
-The user wants to manage their claude-watch sessions. The picker is the canonical UI for this — open it in a sibling tmux pane so it can use the full keyboard without fighting Claude Code's chat UI.
+The user wants to open the claude-watch picker.
 
 Run via Bash:
 
 ```
-tmux split-window -h 'claude-watch pick'
+claude-watch pick --split-pane
 ```
 
-Then reply with one short line so the user knows what happened and where focus is needed:
-
-> ✓ Picker opened in a new pane. Switch focus with your tmux prefix + `o` (or arrow keys).
-
-If the Bash call fails because the user isn't inside tmux (`tmux: no server running` or `error: not inside tmux`), report that directly — claude-watch's picker requires a tmux host, and it can't open a sibling pane without one. Suggest `claude-watch pick` from a regular terminal as the alternative.
+Then **echo the stdout of that command verbatim in your reply** — it tells the user exactly what happened (success message with the right key combo, or a precise error if they're not in tmux). Do not re-word, do not embellish, do not infer success unless the CLI's exit code was 0.
