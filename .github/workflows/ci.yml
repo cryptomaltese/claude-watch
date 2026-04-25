@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y tmux ripgrep
+
+      - name: Install npm dependencies
+        run: bun install
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Test
+        run: bun test
+
+      - name: Build
+        run: bun run build
+
+      - name: Bundle freshness gate
+        run: |
+          STAMP_RE='"[0-9]{8}T[0-9]{6}Z-[0-9a-f]{7,}"'
+          diff <(git show HEAD:dist/cli.js | sed -E "s/$STAMP_RE/\"STAMP\"/g") \
+               <(sed -E "s/$STAMP_RE/\"STAMP\"/g" dist/cli.js)
+
+      - name: Wrapper smoke test
+        run: bash tests/wrapper-smoke.sh

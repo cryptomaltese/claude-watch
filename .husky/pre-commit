@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+if git diff --cached --name-only | grep -qE '^src/'; then
+  PATH="$HOME/.bun/bin:$PATH" bun run build
+  git add dist/cli.js
+fi
