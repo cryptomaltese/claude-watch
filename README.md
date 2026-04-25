@@ -63,11 +63,9 @@ Highlight the session, hit enter, pick **refresh**. claude-watch kills the tmux 
 
 ### Inside Claude Code — `/watched`
 
-If you're already in a Claude Code conversation, type `/watched` to pick a session, run an action on it, and optionally switch focus to its tmux pane — without leaving the current Claude. Use `/watched -s <query>` to pre-filter by cwd name, session name, or last-event content.
+If you're already in a Claude Code conversation, type `/watched` to open the picker in a sibling tmux pane. Your conversation pane stays alive on one side; the picker takes the other. Switch focus with your tmux prefix + `o`, do whatever you'd do in `claude-watch pick` (activate / deactivate / refresh / fork / attach), and the pane closes when the picker exits.
 
-The command flows like this: Claude prints a numbered session list, you pick by number, then pick an action via an inline multi-choice prompt (activate / deactivate / refresh / fork / attach — what's offered depends on the session's state), then decide whether to stay in the current Claude or switch tmux focus to the selected session's pane.
-
-`/watched` is a thin adapter over the same CLI the picker uses — actions taken there are identical to the same actions from `claude-watch pick`.
+This requires that you launched Claude inside tmux — which is the default for any claude-watch-managed session anyway. If you're not in tmux, the slash command will tell you.
 
 ### Fork a session
 
