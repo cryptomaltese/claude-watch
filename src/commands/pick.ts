@@ -55,12 +55,16 @@ function runSplitPane(vertical: boolean): void {
   const tmuxEnv = recoverTmuxEnv();
   if (!tmuxEnv) {
     console.log(
-      "✗ No tmux session found in the process tree.\n\n" +
-      "  Claude Code's Bash tool scrubs $TMUX from subprocesses, so we walk\n" +
-      "  parent /proc/<pid>/environ to recover it. None of the ancestors had\n" +
-      "  TMUX set either, which means Claude Code itself wasn't launched from\n" +
-      "  a tmux pane.\n\n" +
-      "  Alternative: run `claude-watch pick` directly in a regular terminal."
+      "✗ Your Claude Code session isn't running inside tmux, so the picker\n" +
+      "  can't open as a split pane.\n\n" +
+      "  Fix — exit this Claude (Ctrl+D twice or /quit), then re-launch\n" +
+      "  inside tmux:\n\n" +
+      "      tmux new-session 'claude --plugin-dir ~/.openclaw/workspace/builds/claude-watch'\n\n" +
+      "  Or open a tmux session first, then start Claude inside it:\n\n" +
+      "      tmux\n" +
+      "      claude --plugin-dir ~/.openclaw/workspace/builds/claude-watch\n\n" +
+      "  Either way, every subsequent `/watched` will open the picker as a\n" +
+      "  split pane next to your conversation."
     );
     process.exit(1);
   }
