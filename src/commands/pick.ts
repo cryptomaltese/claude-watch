@@ -55,16 +55,12 @@ function runSplitPane(vertical: boolean): void {
   const tmuxEnv = recoverTmuxEnv();
   if (!tmuxEnv) {
     console.log(
-      "✗ Your Claude Code session isn't running inside tmux, so the picker\n" +
-      "  can't open as a split pane.\n\n" +
-      "  Fix — exit this Claude (Ctrl+D twice or /quit), then re-launch\n" +
-      "  inside tmux:\n\n" +
-      "      tmux new-session 'claude --plugin-dir ~/.openclaw/workspace/builds/claude-watch'\n\n" +
-      "  Or open a tmux session first, then start Claude inside it:\n\n" +
-      "      tmux\n" +
-      "      claude --plugin-dir ~/.openclaw/workspace/builds/claude-watch\n\n" +
-      "  Either way, every subsequent `/watched` will open the picker as a\n" +
-      "  split pane next to your conversation."
+      "✗ This Claude isn't running inside tmux, so /watched can't open\n" +
+      "  the picker as a split pane.\n\n" +
+      "  One-time fix: exit this session (Ctrl+D twice or /quit), then:\n\n" +
+      "      claude-watch open\n\n" +
+      "  That command launches Claude inside tmux with the claude-watch\n" +
+      "  plugin loaded. Future /watched calls will work."
     );
     process.exit(1);
   }

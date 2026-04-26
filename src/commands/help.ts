@@ -6,8 +6,10 @@ export function runHelp(): void {
 Usage: claude-watch [command] [args]
 
 Commands:
-  (default)                 Open the interactive session picker
-  pick                      Alias for default
+  open                      Launch Claude inside tmux with this plugin loaded
+                            — use this instead of \`claude\` when you want
+                            /watched and the picker available
+  (default) / pick          Open the interactive session picker
   scan                      Run one watchdog cycle (cron entrypoint)
   status [--json]           Show watched session status; --json adds enriched view
   new <dir>                 Create a new watched session

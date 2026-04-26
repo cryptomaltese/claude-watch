@@ -86,6 +86,11 @@ async function main(): Promise<void> {
       await runNew(args);
       break;
     }
+    case "open": {
+      const { runOpen } = await import("./commands/open.js");
+      await runOpen(args);
+      break;
+    }
     case "attach": {
       const { runAttach } = await import("./commands/attach.js");
       await runAttach(args);
