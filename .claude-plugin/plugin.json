@@ -1,13 +1,10 @@
 {
   "name": "claude-watch",
-  "description": "Persistent, auto-resuscitating Claude Code sessions with remote control. Keeps your agents alive across crashes, reboots, and rate limits.",
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "description": "Persistent, auto-resuscitating Claude Code sessions with interactive picker",
   "author": {
-    "name": "Quinn",
-    "email": "quinn@openclaw.dev"
+    "name": "openclaw"
   },
-  "homepage": "https://github.com/openclaw/claude-watch",
-  "repository": "https://github.com/openclaw/claude-watch",
-  "license": "MIT",
-  "keywords": ["session-manager", "watchdog", "tmux", "remote-control", "persistent-sessions"]
+  "homepage": "https://github.com/cryptomaltese/claude-watch",
+  "keywords": ["session", "tmux", "watchdog", "persistent", "resume"]
 }
